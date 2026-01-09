@@ -91,40 +91,7 @@ const playPopSound = () => {
   } catch (e) {}
 };
 
-// Airhorn sound effect - memorable and funny
-const playAirhornSound = () => {
-  try {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-    // Create multiple oscillators for that rich airhorn sound
-    const frequencies = [349.23, 440, 523.25]; // F4, A4, C5 - creates a major chord
-
-    frequencies.forEach((freq, i) => {
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
-      oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
-      oscillator.type = 'sawtooth';
-
-      // Stagger the starts slightly for that "blaring" effect
-      const startTime = audioCtx.currentTime + (i * 0.02);
-      const duration = 0.5;
-
-      gainNode.gain.setValueAtTime(0, startTime);
-      gainNode.gain.linearRampToValueAtTime(0.15, startTime + 0.05);
-      gainNode.gain.setValueAtTime(0.15, startTime + duration - 0.1);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-
-      oscillator.start(startTime);
-      oscillator.stop(startTime + duration);
-    });
-  } catch (e) {}
-};
-
-// Dramatic reveal sound - builds tension then releases
+// Dramatic reveal sound - builds tension then releases (premium feel)
 const playDramaticRevealSound = () => {
   try {
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -1768,7 +1735,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
           // Trigger screen shake + haptic + sounds for dramatic reveal
           setTimeout(() => {
             setIsShaking(true);
-            playAirhornSound(); // Memorable airhorn on reveal!
+            playDramaticRevealSound(); // Sophisticated dramatic reveal
             triggerImpactHaptic();
 
             setTimeout(() => {
