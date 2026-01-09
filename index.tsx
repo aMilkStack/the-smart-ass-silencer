@@ -1190,20 +1190,13 @@ You do not roast the user. You are the user's weapon. The user will paste text f
       if (!text) throw new Error("I couldn't hear the rubbish.");
 
       // 2. Generate Audio while still in loading state
-      // Remove section headers, emojis, and markdown formatting
-      const cleanText = text
-        .replace(/##\s*[💀🔬🎯]?\s*(The Kill Shot|Der Gnadenschuss|The Autopsy|Die Obduktion|Follow-up Question|Nachfrage)[:\s]*/gi, '')
-        .replace(/[*#_]/g, '')
-        .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Remove emojis
-        .replace(/\n+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
+      const cleanText = text.replace(/[*#_]/g, '').replace(/\n+/g, '. ');
+      
       let ttsPrompt;
       if (language === 'de') {
-        ttsPrompt = `Read the following German response with a bored, cynical tone. Read it naturally as continuous text: ${cleanText}`;
+        ttsPrompt = `Read the following response with a bored, cynical, and dry German male accent. Do not read the section titles like 'The Kill Shot' or 'Die Obduktion'. Just read the content naturally as if you are annoyed by the stupidity: ${cleanText}`;
       } else {
-        ttsPrompt = `Read the following response with a very cynical, bored British accent. Read it naturally as continuous text: ${cleanText}`;
+        ttsPrompt = `Read the following response with a very cynical, bored, and dry British accent. Do not read the section titles like 'The Kill Shot'. Just read the content naturally as if you are annoyed by the stupidity: ${cleanText}`;
       }
 
       try {
@@ -1386,8 +1379,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-8 bg-pink-200 opacity-80 -rotate-1 shadow-sm" style={{clipPath: 'polygon(2% 0, 100% 0, 98% 100%, 0% 100%)'}}></div>
 
             {/* Title Section */}
-            <div className="mb-4 text-center relative flex flex-col items-center">
-                <div className="relative w-full max-w-2xl h-40 md:h-52 flex items-center justify-center">
+            <div className="mb-2 text-center relative flex flex-col items-center">
+                <div className="relative w-full max-w-lg h-32 md:h-40 flex items-center justify-center">
                     <img
                         src={logoImg}
                         alt="Jazz's Smartass Silencer"
@@ -1409,20 +1402,20 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
             {step === 'input' && (
                 <div className="flex flex-col gap-4">
-                    <div className="relative overflow-hidden">
+                    <div className="relative">
                         <div className="mb-2 mt-2 h-12 w-full">
-                           <ScribbleHeader
-                                text={isRecording
-                                    ? (language === 'de' ? "Höre zu..." : "Listening...")
+                           <ScribbleHeader 
+                                text={isRecording 
+                                    ? (language === 'de' ? "Höre zu..." : "Listening...") 
                                     : (language === 'de' ? "Na los, erzähl schon" : "Go on then, let's hear it")
                                 }
                                 delay={0.2}
                                 color={isRecording ? "#ef4444" : "#2a2a2a"}
                             />
                         </div>
-
-                        <div className="relative overflow-hidden rounded-lg">
-                            <RoughHighlight show={inputFocused} type="bracket" color="#ef4444" padding={6} strokeWidth={3} iterations={2} animationDuration={400}>
+                        
+                        <div className="relative">
+                            <RoughHighlight show={inputFocused} type="bracket" color="#ef4444" padding={10} strokeWidth={4} iterations={3} animationDuration={400}>
                                 <textarea 
                                     ref={inputRef}
                                     value={input}
