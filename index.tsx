@@ -1727,7 +1727,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
       />
 
       {/* Main Container */}
-      <div className="w-full max-w-2xl relative z-10 my-2 md:my-6 px-2">
+      <div className="w-full max-w-xs sm:max-w-sm md:max-w-2xl relative z-10 my-2 md:my-6 px-2">
         
         {/* The Card */}
         <div className="bg-white wobbly-box p-4 md:p-8 relative">
@@ -1759,7 +1759,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
             {/* Title Section */}
             <div className="mb-6 mt-2 text-center relative flex flex-col items-center">
-                <div className="relative w-full h-72 md:h-80 flex items-center justify-center px-2">
+                <div className="relative w-full h-40 sm:h-52 md:h-72 flex items-center justify-center px-2">
                     <img
                         src={logoImg}
                         alt="Jazz's Smartass Silencer"
