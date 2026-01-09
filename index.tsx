@@ -1700,7 +1700,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
   };
 
   return (
-    <div className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden" style={{ zoom: 0.5 }}>
+    <div className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
 
       <LanguageSelectionModal
         isOpen={showLanguageSelect}
@@ -1759,7 +1759,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
             {/* Title Section */}
             <div className="mb-6 mt-2 text-center relative flex flex-col items-center">
-                <div className="relative w-full h-52 md:h-72 flex items-center justify-center px-2">
+                <div className="relative w-full h-72 md:h-80 flex items-center justify-center px-2">
                     <img
                         src={logoImg}
                         alt="Jazz's Smartass Silencer"
