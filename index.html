@@ -335,6 +335,52 @@
 
       .high-contrast input[type="range"]::-webkit-slider-thumb {
         background: #fff !important;
+
+      /* Handwriting Textarea Effect */
+      .handwriting-textarea-container {
+        position: relative;
+        width: 100%;
+      }
+
+      .handwriting-textarea-input {
+        position: relative;
+        z-index: 1;
+        background: transparent !important;
+      }
+
+      .handwriting-overlay {
+        z-index: 2;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      .handwriting-char {
+        display: inline;
+        will-change: opacity, transform;
+        transform-origin: center bottom;
+      }
+
+      /* Ink color animation for newly written characters */
+      @keyframes ink-settle {
+        0% {
+          color: #4a5568;
+          text-shadow: 0 0 2px rgba(42, 42, 42, 0.3);
+        }
+        100% {
+          color: #2a2a2a;
+          text-shadow: none;
+        }
+      }
+
+      .handwriting-char-new {
+        animation: ink-settle 0.3s ease-out forwards;
+      }
+
+      /* Subtle pen pressure variation */
+      @keyframes pen-pressure {
+        0%, 100% { font-weight: 400; }
+        50% { font-weight: 450; }
       }
 
     </style>
