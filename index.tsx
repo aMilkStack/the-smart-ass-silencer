@@ -614,7 +614,6 @@ const LanguageSelectionModal = ({
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-white wobbly-box p-8 md:p-10 max-w-md w-full relative text-center space-y-6">
                 <div className="space-y-2">
-                    <h2 className="text-3xl md:text-4xl font-black">🌍</h2>
                     <h2 className="text-2xl md:text-3xl font-black">Choose Your Language</h2>
                     <p className="text-lg md:text-xl font-black">Wähle deine Sprache</p>
                 </div>
@@ -624,13 +623,13 @@ const LanguageSelectionModal = ({
                         onClick={() => handleSelect('en')}
                         className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
                     >
-                        🇬🇧 English
+                        English
                     </button>
                     <button
                         onClick={() => handleSelect('de')}
                         className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
                     >
-                        🇩🇪 Deutsch
+                        Deutsch
                     </button>
                 </div>
             </div>
@@ -1109,6 +1108,7 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   // Voice Input State
   const [isRecording, setIsRecording] = useState(false);
@@ -1228,9 +1228,24 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
     recognition.start();
   };
 
+  const stopAudio = () => {
+    if (audioSourceRef.current) {
+      try {
+        audioSourceRef.current.stop();
+      } catch (e) {
+        // Already stopped
+      }
+      audioSourceRef.current = null;
+    }
+    setIsPlaying(false);
+  };
+
   const playAudio = async () => {
     if (!audioBufferRef.current || !audioContextRef.current) return;
-    
+
+    // Stop any currently playing audio
+    stopAudio();
+
     // Ensure context is running
     if (audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
@@ -1239,18 +1254,25 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
     const source = audioContextRef.current.createBufferSource();
     source.buffer = audioBufferRef.current;
     source.connect(audioContextRef.current.destination);
-    source.onended = () => setIsPlaying(false);
-    
+    source.onended = () => {
+      setIsPlaying(false);
+      audioSourceRef.current = null;
+    };
+
+    audioSourceRef.current = source;
     setIsPlaying(true);
     source.start();
   };
 
-  const handleSilencer = async () => {
+  const handleSilencer = async (forcedLanguage?: 'en' | 'de') => {
     if (!input.trim()) return;
 
+    // Use forced language if provided, otherwise use state language
+    const activeLanguage = forcedLanguage || language;
+
     if (!apiKey.trim()) {
-        setError(language === 'de' 
-            ? "API-Schlüssel fehlt. Füge ihn in den Einstellungen hinzu." 
+        setError(activeLanguage === 'de'
+            ? "API-Schlüssel fehlt. Füge ihn in den Einstellungen hinzu."
             : "API Key is missing. Add it in Settings."
         );
         setShowSettings(true);
@@ -1262,6 +1284,9 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
         recognitionRef.current?.stop();
         setIsRecording(false);
     }
+
+    // Stop any currently playing audio
+    stopAudio();
 
     // Init audio context immediately on click
     initAudioContext();
@@ -1334,7 +1359,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         model: 'gemini-3-flash-preview',
         contents: input,
         config: {
-          systemInstruction: language === 'de' ? systemPromptDe : systemPromptEn,
+          systemInstruction: activeLanguage === 'de' ? systemPromptDe : systemPromptEn,
         },
       });
       
@@ -1344,15 +1369,18 @@ You do not roast the user. You are the user's weapon. The user will paste text f
       // 2. Generate Audio while still in loading state
       // Remove section headers, emojis, and markdown formatting
       const cleanText = text
-        .replace(/##\s*[💀🔬🎯]?\s*(The Kill Shot|Der Gnadenschuss|The Autopsy|Die Obduktion|Follow-up Question|Nachfrage)[:\s]*/gi, '')
+        .replace(/##\s*[💀🔬🎯]?\s*.*?(The Kill Shot|Der Gnadenschuss|The Autopsy|Die Obduktion|Follow-up Question|Nachfrage|Why he's.*?)[:.]?\s*/gi, '')
+        .replace(/^["']/gm, '') // Remove leading quotes
+        .replace(/["']$/gm, '') // Remove trailing quotes
         .replace(/[*#_]/g, '')
         .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Remove emojis
-        .replace(/\n+/g, ' ')
+        .replace(/\n+/g, '. ') // Replace newlines with periods for natural pauses
+        .replace(/\.\s*\./g, '.') // Remove double periods
         .replace(/\s+/g, ' ')
         .trim();
 
       let ttsPrompt;
-      if (language === 'de') {
+      if (activeLanguage === 'de') {
         ttsPrompt = `Read the following German response with a bored, cynical tone. Read it naturally as continuous text: ${cleanText}`;
       } else {
         ttsPrompt = `Read the following response with a very cynical, bored British accent. Read it naturally as continuous text: ${cleanText}`;
@@ -1407,18 +1435,18 @@ You do not roast the user. You are the user's weapon. The user will paste text f
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes('API_KEY') || msg.includes('401')) {
-        setError(language === 'de' 
-            ? "API-Schlüssel kaputt. Prüfe deine .env" 
+        setError(activeLanguage === 'de'
+            ? "API-Schlüssel kaputt. Prüfe deine .env"
             : "API key's borked. Check your .env"
         );
       } else if (msg.includes('429') || msg.includes('quota')) {
-        setError(language === 'de' 
-            ? "Zu viel Geschwätz. Kontingent überschritten. Warte kurz." 
+        setError(activeLanguage === 'de'
+            ? "Zu viel Geschwätz. Kontingent überschritten. Warte kurz."
             : "Too much waffle. Quota exceeded. Give it a minute."
         );
       } else {
-        setError(msg || (language === 'de' 
-            ? "Ich brauche erstmal einen Kaffee dafür." 
+        setError(msg || (activeLanguage === 'de'
+            ? "Ich brauche erstmal einen Kaffee dafür."
             : "I need a proper cup of tea for this."
         ));
       }
@@ -1500,9 +1528,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
   // Handle regenerating result when language changes
   const handleRegenerateWithLanguage = async (newLanguage: 'en' | 'de') => {
-    // Language is already set by SettingsModal before calling this
-    // Just regenerate with the current input
-    await handleSilencer();
+    // Pass the new language directly to handleSilencer to avoid state timing issues
+    await handleSilencer(newLanguage);
   };
 
   return (
@@ -1559,7 +1586,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             </div>
 
             {/* Tape Effect */}
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-10 opacity-90 -rotate-1 shadow-sm z-20" style={{clipPath: 'polygon(2% 0, 100% 0, 98% 100%, 0% 100%)', backgroundColor: '#ff1493'}}></div>
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-10 bg-pink-200 opacity-80 -rotate-1 shadow-sm z-20" style={{clipPath: 'polygon(2% 0, 100% 0, 98% 100%, 0% 100%)'}}></div>
 
             {/* Title Section */}
             <div className="mb-6 mt-2 text-center relative flex flex-col items-center">
