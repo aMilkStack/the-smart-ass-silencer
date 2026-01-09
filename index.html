@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#fffdf5">
+    <title>Smartass Silencer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              hand: ['"Gochi Hand"', 'cursive'],
+            },
+            animation: {
+              'spin-slow': 'spin 3s linear infinite',
+              'slap': 'slap 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+              'float': 'float 3s ease-in-out infinite',
+              'pop': 'pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.5) forwards',
+              'bounce-once': 'bounce-once 0.4s ease-out forwards',
+              'crossfade': 'crossfade 0.5s ease-out forwards',
+            },
+            keyframes: {
+              slap: {
+                '0%': { opacity: '0', transform: 'scale(1.5) rotate(5deg)' },
+                '100%': { opacity: '1', transform: 'scale(1) rotate(-2deg)' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0px) rotate(-2deg)' },
+                '50%': { transform: 'translateY(-5px) rotate(-1deg)' },
+              },
+              pop: {
+                '0%': { transform: 'scale(1)' },
+                '50%': { transform: 'scale(1.3)' },
+                '100%': { transform: 'scale(1)' },
+              },
+              'bounce-once': {
+                '0%': { transform: 'scale(0) rotate(-12deg)' },
+                '50%': { transform: 'scale(1.2) rotate(5deg)' },
+                '100%': { transform: 'scale(1) rotate(0deg)' },
+              },
+              crossfade: {
+                '0%': { opacity: '0', transform: 'translateY(10px) scale(0.98)' },
+                '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        font-family: 'Gochi Hand', cursive;
+        background-color: #fffdf5;
+        color: #2a2a2a;
+        -webkit-tap-highlight-color: transparent; /* Remove blue highlight on tap */
+      }
+      
+      .font-hand {
+        font-family: 'Gochi Hand', cursive;
+      }
+
+      /* Notebook Grid Pattern */
+      .paper-bg {
+        background-image: 
+          linear-gradient(#a3d5ff 1px, transparent 1px), 
+          linear-gradient(90deg, #a3d5ff 1px, transparent 1px);
+        background-size: 24px 24px;
+        background-position: center top;
+      }
+
+      /* Hand-drawn organic shapes */
+      .wobbly-box {
+        border: 3px solid #2a2a2a;
+        /* The signature organic shape */
+        border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+        box-shadow: 4px 4px 0px 0px #2a2a2a;
+        transition: border-radius 0.4s ease-in-out, transform 0.3s ease-out, box-shadow 0.3s ease;
+        background: white;
+      }
+
+      .wobbly-box:hover {
+        /* Subtle shift instead of extreme inversion to keep content attached */
+        border-radius: 245px 20px 215px 25px / 25px 215px 20px 245px;
+        transform: rotate(-0.5deg) scale(1.005);
+        box-shadow: 6px 6px 0px 0px #2a2a2a;
+      }
+
+      .wobbly-box:active {
+        box-shadow: 2px 2px 0px 0px #2a2a2a;
+        transform: translate(2px, 2px) rotate(0deg);
+        transition: all 0.1s;
+      }
+      
+      .wobbly-input {
+        border: 2px solid #2a2a2a;
+        border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+        background: transparent;
+        transition: all 0.3s ease;
+      }
+
+      .wobbly-input:focus {
+        border-radius: 15px 225px 15px 255px / 255px 15px 225px 15px;
+      }
+      
+      /* Marker Highlight Animation */
+      @keyframes highlight {
+        0% { background-size: 0% 100%; }
+        100% { background-size: 100% 100%; }
+      }
+      
+      .marker-highlight {
+        background-image: linear-gradient(120deg, #fdfd96 0%, #fdfd96 100%);
+        background-repeat: no-repeat;
+        background-size: 100% 100%;
+        background-position: 0 88%;
+        padding: 0 4px;
+      }
+
+      /* Scribble Text Animation */
+      @keyframes scribble-stroke {
+        to { stroke-dashoffset: 0; }
+      }
+      
+      @keyframes scribble-fill {
+        to { fill: #2a2a2a; }
+      }
+
+      .scribble-text {
+        overflow: visible;
+      }
+
+      .scribble-text tspan {
+        fill: transparent;
+        stroke: #2a2a2a;
+        stroke-width: 1px;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-dasharray: 400; /* Long enough for any char */
+        stroke-dashoffset: 400;
+        animation: scribble-stroke 0.6s ease-out forwards, scribble-fill 0.4s ease-out 0.6s forwards;
+      }
+
+      /* Shake Animation for Copy Button */
+      @keyframes shake {
+        0%, 100% { transform: rotate(0deg); }
+        100% { transform: rotate(0deg); } /* Reset */
+        25% { transform: rotate(15deg); }
+        75% { transform: rotate(-15deg); }
+      }
+      
+      .animate-shake {
+        animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+      }
+
+    </style>
+
+<link rel="stylesheet" href="/index.css">
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "rough-notation": "https://esm.sh/rough-notation@0.5.1"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/smartassilencer/assets/index-BMYH7chC.js"></script>
+</head>
+  <body class="paper-bg min-h-screen">
+    <div id="root"></div>
+  </body>
+</html>
