@@ -1466,8 +1466,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-8 bg-pink-200 opacity-80 -rotate-1 shadow-sm" style={{clipPath: 'polygon(2% 0, 100% 0, 98% 100%, 0% 100%)'}}></div>
 
             {/* Title Section */}
-            <div className="mb-4 text-center relative flex flex-col items-center">
-                <div className="relative w-full max-w-2xl h-40 md:h-52 flex items-center justify-center">
+            <div className="mb-6 text-center relative flex flex-col items-center">
+                <div className="relative w-full h-48 md:h-64 flex items-center justify-center px-4">
                     <img
                         src={logoImg}
                         alt="Jazz's Smartass Silencer"
