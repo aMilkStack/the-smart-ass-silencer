@@ -72,89 +72,19 @@ const playPopSound = () => {
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-
+    
     oscillator.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-
+    
     oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.05);
     oscillator.type = 'sine';
-
+    
     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-
+    
     oscillator.start(audioCtx.currentTime);
     oscillator.stop(audioCtx.currentTime + 0.1);
-  } catch (e) {}
-};
-
-const playExplosionSound = () => {
-  try {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-    // Create noise for explosion
-    const bufferSize = audioCtx.sampleRate * 0.3;
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const output = buffer.getChannelData(0);
-
-    for (let i = 0; i < bufferSize; i++) {
-      output[i] = Math.random() * 2 - 1;
-    }
-
-    const noise = audioCtx.createBufferSource();
-    noise.buffer = buffer;
-
-    // Low pass filter for rumble
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
-    filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
-
-    const gainNode = audioCtx.createGain();
-    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-
-    noise.connect(filter);
-    filter.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-
-    noise.start(audioCtx.currentTime);
-    noise.stop(audioCtx.currentTime + 0.3);
-
-    // Add a bass thump
-    const osc = audioCtx.createOscillator();
-    const oscGain = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.2);
-    oscGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
-    osc.connect(oscGain);
-    oscGain.connect(audioCtx.destination);
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + 0.2);
-  } catch (e) {}
-};
-
-const playRageTickSound = (intensity: number) => {
-  try {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-
-    // Higher pitch as intensity increases
-    const baseFreq = 200 + (intensity * 400);
-    oscillator.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
-    oscillator.type = 'square';
-
-    gainNode.gain.setValueAtTime(0.05 + (intensity * 0.05), audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-
-    oscillator.start(audioCtx.currentTime);
-    oscillator.stop(audioCtx.currentTime + 0.05);
   } catch (e) {}
 };
 
@@ -625,200 +555,6 @@ const RoughHighlight = ({
     );
 };
 
-// Rage Meter Component - Builds up and explodes!
-const RageMeter = ({
-    onComplete,
-    language
-}: {
-    onComplete: () => void;
-    language: 'en' | 'de';
-}) => {
-    const [progress, setProgress] = useState(0);
-    const [isShaking, setIsShaking] = useState(false);
-    const [isExploding, setIsExploding] = useState(false);
-    const [particles, setParticles] = useState<Array<{id: number; x: number; y: number; tx: number; ty: number; r: number; color: string; size: number}>>([]);
-    const [showFlash, setShowFlash] = useState(false);
-    const meterRef = useRef<HTMLDivElement>(null);
-    const lastTickRef = useRef(0);
-
-    const rageLabelsEn = [
-        { threshold: 0, label: "Mildly annoyed" },
-        { threshold: 20, label: "Eye twitching" },
-        { threshold: 40, label: "Blood pressure rising" },
-        { threshold: 60, label: "Seeing red" },
-        { threshold: 80, label: "MAXIMUM RAGE" },
-        { threshold: 95, label: "CRITICAL!!!" },
-    ];
-
-    const rageLabelsDe = [
-        { threshold: 0, label: "Leicht genervt" },
-        { threshold: 20, label: "Augenzucken" },
-        { threshold: 40, label: "Blutdruck steigt" },
-        { threshold: 60, label: "Sehe rot" },
-        { threshold: 80, label: "MAXIMALE WUT" },
-        { threshold: 95, label: "KRITISCH!!!" },
-    ];
-
-    const rageLabels = language === 'de' ? rageLabelsDe : rageLabelsEn;
-
-    const getCurrentLabel = () => {
-        for (let i = rageLabels.length - 1; i >= 0; i--) {
-            if (progress >= rageLabels[i].threshold) {
-                return rageLabels[i].label;
-            }
-        }
-        return rageLabels[0].label;
-    };
-
-    useEffect(() => {
-        // Animate progress
-        const duration = 2000; // 2 seconds to fill
-        const startTime = Date.now();
-
-        const animate = () => {
-            const elapsed = Date.now() - startTime;
-            const newProgress = Math.min(100, (elapsed / duration) * 100);
-
-            // Play tick sounds at intervals
-            const tickInterval = 10;
-            if (Math.floor(newProgress / tickInterval) > lastTickRef.current) {
-                lastTickRef.current = Math.floor(newProgress / tickInterval);
-                playRageTickSound(newProgress / 100);
-            }
-
-            setProgress(newProgress);
-
-            // Start shaking at 50%
-            if (newProgress >= 50 && !isShaking) {
-                setIsShaking(true);
-            }
-
-            if (newProgress < 100) {
-                requestAnimationFrame(animate);
-            } else {
-                // Explosion time!
-                triggerExplosion();
-            }
-        };
-
-        requestAnimationFrame(animate);
-    }, []);
-
-    const triggerExplosion = () => {
-        setIsExploding(true);
-        setShowFlash(true);
-        playExplosionSound();
-
-        // Generate particles
-        const newParticles: typeof particles = [];
-        const colors = ['#ef4444', '#f97316', '#eab308', '#dc2626', '#fbbf24'];
-
-        for (let i = 0; i < 30; i++) {
-            const angle = (Math.PI * 2 * i) / 30 + (Math.random() - 0.5) * 0.5;
-            const distance = 100 + Math.random() * 150;
-            newParticles.push({
-                id: i,
-                x: 0,
-                y: 0,
-                tx: Math.cos(angle) * distance,
-                ty: Math.sin(angle) * distance,
-                r: Math.random() * 720 - 360,
-                color: colors[Math.floor(Math.random() * colors.length)],
-                size: 8 + Math.random() * 16
-            });
-        }
-        setParticles(newParticles);
-
-        // Hide flash quickly
-        setTimeout(() => setShowFlash(false), 150);
-
-        // Complete after explosion animation
-        setTimeout(() => {
-            onComplete();
-        }, 600);
-    };
-
-    const shakeIntensity = isShaking ? Math.min((progress - 50) / 50, 1) : 0;
-
-    return (
-        <div className="flex flex-col items-center gap-4 py-6 relative">
-            {/* Flash overlay */}
-            {showFlash && (
-                <div className="fixed inset-0 bg-red-500 animate-flash z-50 pointer-events-none" />
-            )}
-
-            {/* Rage Label */}
-            <div className={`text-2xl md:text-3xl font-black text-center transition-all duration-200 ${
-                progress >= 80 ? 'text-red-600 scale-110' : progress >= 60 ? 'text-orange-500' : 'text-gray-800'
-            }`}>
-                {getCurrentLabel()}
-            </div>
-
-            {/* Meter Container */}
-            <div
-                ref={meterRef}
-                className={`relative w-full max-w-md h-12 md:h-16 wobbly-box bg-gray-100 overflow-hidden ${
-                    isShaking ? 'animate-rage-shake' : ''
-                } ${progress >= 80 ? 'rage-glow' : ''}`}
-                style={{
-                    transform: isShaking ? `translateX(${(Math.random() - 0.5) * shakeIntensity * 6}px)` : undefined,
-                    transition: isExploding ? 'transform 0.3s ease-out' : undefined
-                }}
-            >
-                {/* Fill Bar */}
-                <div
-                    className={`absolute inset-y-0 left-0 transition-all duration-100 ${
-                        isExploding ? 'animate-rage-explode' : ''
-                    }`}
-                    style={{
-                        width: `${progress}%`,
-                        background: progress < 50
-                            ? 'linear-gradient(90deg, #fbbf24, #f97316)'
-                            : progress < 80
-                            ? 'linear-gradient(90deg, #f97316, #ef4444)'
-                            : 'linear-gradient(90deg, #ef4444, #dc2626)',
-                    }}
-                />
-
-                {/* Percentage */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={`text-xl md:text-2xl font-black ${
-                        progress > 50 ? 'text-white' : 'text-gray-800'
-                    } drop-shadow-md`}>
-                        {Math.round(progress)}%
-                    </span>
-                </div>
-
-                {/* Particles */}
-                {particles.map(particle => (
-                    <div
-                        key={particle.id}
-                        className="rage-particle absolute"
-                        style={{
-                            left: '50%',
-                            top: '50%',
-                            width: particle.size,
-                            height: particle.size,
-                            backgroundColor: particle.color,
-                            borderRadius: Math.random() > 0.5 ? '50%' : '2px',
-                            '--tx': `${particle.tx}px`,
-                            '--ty': `${particle.ty}px`,
-                            '--r': `${particle.r}deg`,
-                        } as React.CSSProperties}
-                    />
-                ))}
-            </div>
-
-            {/* Sub-label */}
-            <div className={`text-sm md:text-base font-bold text-gray-500 transition-opacity duration-300 ${
-                isExploding ? 'opacity-0' : 'opacity-100'
-            }`}>
-                {language === 'de' ? 'Wut-Analyse läuft...' : 'Analysing rage levels...'}
-            </div>
-        </div>
-    );
-};
-
 const CopyButton = ({ text, language }: { text: string, language: 'en' | 'de' }) => {
     const [copied, setCopied] = useState(false);
 
@@ -901,6 +637,24 @@ const LanguageSelectionModal = ({
     );
 };
 
+// Sarcasm level labels
+const SARCASM_LEVELS = {
+    en: [
+        { level: 1, label: "Mildly Annoyed", desc: "Polite disappointment" },
+        { level: 2, label: "Eye Roll", desc: "Passive-aggressive sighing" },
+        { level: 3, label: "Properly British", desc: "Dry wit & backhanded compliments" },
+        { level: 4, label: "Savage", desc: "No mercy, no survivors" },
+        { level: 5, label: "Nuclear", desc: "Verbal war crimes" }
+    ],
+    de: [
+        { level: 1, label: "Leicht Genervt", desc: "Höfliche Enttäuschung" },
+        { level: 2, label: "Augenrollen", desc: "Passiv-aggressives Seufzen" },
+        { level: 3, label: "Typisch Deutsch", desc: "Bürokratische Verachtung" },
+        { level: 4, label: "Brutal", desc: "Keine Gnade, keine Überlebenden" },
+        { level: 5, label: "Atomar", desc: "Verbale Kriegsverbrechen" }
+    ]
+};
+
 const SettingsModal = ({
     isOpen,
     onClose,
@@ -910,6 +664,8 @@ const SettingsModal = ({
     hasAudio,
     autoPlay,
     setAutoPlay,
+    sarcasmLevel,
+    setSarcasmLevel,
     isPlaying,
     step,
     onRegenerateWithLanguage
@@ -1014,6 +770,59 @@ const SettingsModal = ({
                         >
                             <div className="w-5 h-5 bg-white border-2 border-black rounded-full shadow-sm"></div>
                          </button>
+                    </div>
+
+                    {/* Sarcasm Level Slider */}
+                    <div className="space-y-3 pt-4 border-t-2 border-dashed border-gray-200">
+                        <label className="font-bold text-gray-600 block">
+                            {language === 'de' ? 'Brutalitätsstufe' : 'Brutality Level'}
+                        </label>
+                        <div className="relative">
+                            {/* Custom slider track */}
+                            <div className="relative h-3 bg-gradient-to-r from-yellow-200 via-orange-400 to-red-600 border-2 border-black rounded-full">
+                                {/* Slider markers */}
+                                <div className="absolute inset-0 flex justify-between px-1 items-center">
+                                    {[1, 2, 3, 4, 5].map((n) => (
+                                        <div
+                                            key={n}
+                                            className={`w-1.5 h-1.5 rounded-full transition-all ${
+                                                n <= sarcasmLevel ? 'bg-black' : 'bg-white/50'
+                                            }`}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                            {/* Invisible range input for interaction */}
+                            <input
+                                type="range"
+                                min="1"
+                                max="5"
+                                value={sarcasmLevel}
+                                onChange={(e) => {
+                                    playClickSound();
+                                    setSarcasmLevel(parseInt(e.target.value, 10));
+                                }}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            {/* Custom thumb indicator */}
+                            <div
+                                className="absolute top-1/2 -translate-y-1/2 pointer-events-none transition-all duration-150"
+                                style={{ left: `calc(${((sarcasmLevel - 1) / 4) * 100}% - ${sarcasmLevel === 1 ? '0px' : sarcasmLevel === 5 ? '24px' : '12px'})` }}
+                            >
+                                <div className="w-6 h-6 bg-white border-2 border-black rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center text-xs font-black">
+                                    {sarcasmLevel}
+                                </div>
+                            </div>
+                        </div>
+                        {/* Level display */}
+                        <div className="text-center">
+                            <div className="text-lg font-black">
+                                {sarcasmLevel}/5 — {SARCASM_LEVELS[language][sarcasmLevel - 1].label}
+                            </div>
+                            <div className="text-xs text-gray-500 italic">
+                                {SARCASM_LEVELS[language][sarcasmLevel - 1].desc}
+                            </div>
+                        </div>
                     </div>
 
                      {/* Audio Playback */}
@@ -1319,7 +1128,7 @@ const ResultSection = ({
 
 const App = () => {
   const [input, setInput] = useState("");
-  const [step, setStep] = useState<'input' | 'loading' | 'rage' | 'result'>('input');
+  const [step, setStep] = useState<'input' | 'loading' | 'result'>('input');
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
@@ -1343,6 +1152,14 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
     return 'en';
   });
   const [autoPlay, setAutoPlay] = useState(true);
+  const [sarcasmLevel, setSarcasmLevel] = useState<number>(() => {
+    // Load from localStorage on init (default: 3 - "Properly Annoyed")
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sarcasm_level');
+      return saved ? parseInt(saved, 10) : 3;
+    }
+    return 3;
+  });
   const [apiKey, setApiKey] = useState(() => {
     // Load from environment variable first, then localStorage
     if (typeof window !== 'undefined') {
@@ -1364,6 +1181,13 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
       localStorage.setItem('user_language', language);
     }
   }, [language]);
+
+  // Save sarcasm level when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sarcasm_level', sarcasmLevel.toString());
+    }
+  }, [sarcasmLevel]);
 
   // Tour State
   const [tourStep, setTourStep] = useState<number | null>(null);
@@ -1565,16 +1389,90 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
 
     try {
       const ai = new GoogleGenAI({ apiKey: apiKey });
-      
+
+      // Intensity modifiers based on sarcasm level
+      const intensityEn = {
+        1: {
+          name: "Mildly Annoyed",
+          tone: "Politely disappointed but still professional. Subtle eye-rolling energy. Think 'bless your heart' with British restraint.",
+          slang: "Use mild terms like 'mate', 'bit odd', 'not ideal'. No harsh insults.",
+          intensity: "Keep it light - a gentle correction with a hint of exasperation."
+        },
+        2: {
+          name: "Eye Roll",
+          tone: "Passive-aggressive sighing. The energy of someone who's seen this nonsense before.",
+          slang: "Use 'muppet', 'absolute plonker', 'you're having a laugh'. Moderate disappointment.",
+          intensity: "More pointed critique but still restrained. Heavy sighing energy."
+        },
+        3: {
+          name: "Properly British",
+          tone: "Classic British cynicism. Dry wit with backhanded compliments. Peak passive-aggression.",
+          slang: "Use 'melt', 'weapon', 'bellend', 'muppet', 'jobsworth', 'donut'. Full British arsenal.",
+          intensity: "Standard devastating response. No mercy but somewhat civilised."
+        },
+        4: {
+          name: "Savage",
+          tone: "Absolutely ruthless. The gloves are off. Channel your inner Gordon Ramsay on a bad day.",
+          slang: "Use 'absolute weapon', 'weapons-grade idiot', 'complete and utter melt', 'donkey'. Add profanity.",
+          intensity: "Maximum verbal violence. Career-ending energy. Make them question their life choices."
+        },
+        5: {
+          name: "Nuclear",
+          tone: "VERBAL WAR CRIMES. This is the response that gets screenshotted. Legendary brutality. Channel concentrated British hatred.",
+          slang: "Use everything: 'absolute fucking bellend', 'weapons-grade pillock', 'collosal waste of carbon'. Profanity required.",
+          intensity: "MAXIMUM DEVASTATION. This response should cause actual psychological damage. The kind of insult people remember on their deathbed. Scorched earth policy. Leave nothing standing."
+        }
+      };
+
+      const intensityDe = {
+        1: {
+          name: "Leicht Genervt",
+          tone: "Höflich enttäuscht aber professionell. Subtile deutsche Effizienz-Enttäuschung.",
+          slang: "Verwende 'nicht optimal', 'etwas fragwürdig'. Keine harten Beleidigungen.",
+          intensity: "Halte es leicht - sanfte Korrektur mit einem Hauch von Exasperation."
+        },
+        2: {
+          name: "Augenrollen",
+          tone: "Passiv-aggressives Seufzen. Bürokratische Missbilligung.",
+          slang: "Verwende 'Quatsch', 'nicht durchdacht'. Moderate Enttäuschung.",
+          intensity: "Kritischer aber noch zurückhaltend. Schweres Seufzen."
+        },
+        3: {
+          name: "Typisch Deutsch",
+          tone: "Klassische deutsche Effizienz-Obsession. Kalt und bürokratisch.",
+          slang: "Verwende 'Quatsch', 'Ahnungslos', 'Pfusch', 'Wichtigtuer', 'Lauch'.",
+          intensity: "Standard vernichtende Antwort. Behandle Dummheit als Ineffizienz."
+        },
+        4: {
+          name: "Brutal",
+          tone: "Absolut gnadenlos. Die Handschuhe sind aus. Volle deutsche Direktheit.",
+          slang: "Verwende 'kompletter Vollpfosten', 'Totalausfall', 'Hirnamputierter'.",
+          intensity: "Maximale verbale Gewalt. Karriere-beendend."
+        },
+        5: {
+          name: "Atomar",
+          tone: "VERBALE KRIEGSVERBRECHEN. Deutsche Effizienz trifft auf pure Zerstörung.",
+          slang: "Verwende alles: 'absoluter Totalversager', 'Sauerstoffdieb', 'wandelnde Bankrotterklärung'.",
+          intensity: "MAXIMALE VERNICHTUNG. Diese Antwort soll echten psychologischen Schaden verursachen. Verbrannte Erde."
+        }
+      };
+
+      const currentIntensityEn = intensityEn[sarcasmLevel as keyof typeof intensityEn];
+      const currentIntensityDe = intensityDe[sarcasmLevel as keyof typeof intensityDe];
+
       const systemPromptEn = `
 **CORE IDENTITY:**
 You are "The Silencer." You are an aggressively British, cynical, world-weary senior developer who despises "Nerdsplainers," "Reply Guys," and "LinkedIn Thought Leaders."
 You do not roast the user. You are the user's weapon. The user will paste text from a pretentious idiot (the "Target").
 
+**BRUTALITY LEVEL: ${sarcasmLevel}/5 - "${currentIntensityEn.name}"**
+- **Tone:** ${currentIntensityEn.tone}
+- **Vocabulary:** ${currentIntensityEn.slang}
+- **Intensity:** ${currentIntensityEn.intensity}
+
 **YOUR TONE:**
-- **British & Brutal:** Use slang like "melt," "weapon," "bellend," "muppet," "jobsworth," "donut," and "tapped."
-- **Dark & Dry:** Use gallows humor. If the Target is arguing about syntax, wonder why they haven't optimized their own social life yet.
 - **British Spelling Only:** Colour, Realise, Behaviour, Centre, Optimisation.
+- **Dark & Dry:** Use gallows humor. If the Target is arguing about syntax, wonder why they haven't optimized their own social life yet.
 
 **YOUR MISSION:**
 1. **Analyze the Cringe:** Identify the pedantry, the "Um, actually" energy, or the incorrect technical confidence.
@@ -1583,13 +1481,13 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 **OUTPUT FORMAT (STRICTLY FOLLOW THIS):**
 
 ## 💀 The Kill Shot
-"[A single, short, withering British one-liner. Equivalent to rolling your eyes. Example: 'Mate, you're optimizing a loop while your production DB is on fire. Behave.']"
+"[A single, short, withering British one-liner. ${sarcasmLevel >= 4 ? 'Make it HURT. This should be career-ending.' : 'Equivalent to rolling your eyes.'}]"
 
 ## 🔬 The Autopsy
-[2-3 sentences explaining why the Target is a 'melt'. Explain the technical logical fallacy or the social awkwardness of their statement using dry British wit.]
+[2-3 sentences explaining why the Target is wrong. ${sarcasmLevel >= 4 ? 'Be absolutely merciless. Tear apart every assumption they made.' : 'Use dry British wit to explain the fallacy.'}]
 
 ## 🎯 Follow-up Question
-[A trap question. Something that forces them to admit they don't know what they're talking about or that they are wasting time.]
+[A trap question. ${sarcasmLevel >= 4 ? 'Design this to maximise embarrassment. Make them dig their own grave.' : 'Something that forces them to admit they don\'t know what they\'re talking about.'}]
 `;
 
     const systemPromptDe = `
@@ -1597,10 +1495,14 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 You are "Der Silencer." You are an aggressively German, efficiency-obsessed, world-weary senior developer who despises "Nerdsplainers," "Reply Guys," and "LinkedIn Thought Leaders."
 You do not roast the user. You are the user's weapon. The user will paste text from a pretentious idiot (the "Target").
 
+**BRUTALITÄTSSTUFE: ${sarcasmLevel}/5 - "${currentIntensityDe.name}"**
+- **Ton:** ${currentIntensityDe.tone}
+- **Vokabular:** ${currentIntensityDe.slang}
+- **Intensität:** ${currentIntensityDe.intensity}
+
 **YOUR TONE:**
-- **German & Brutal:** Use slang like "Quatsch," "Ahnungslos," "Pfusch," "Wichtigtuer."
-- **Cold & Bureaucratic:** Treat stupidity as an inefficiency.
 - **Language:** Respond in German.
+- **Cold & Bureaucratic:** Treat stupidity as an inefficiency.
 
 **YOUR MISSION:**
 1. **Analyze the Cringe:** Identify the pedantry, the "Um, actually" energy, or the incorrect technical confidence.
@@ -1609,13 +1511,13 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 **OUTPUT FORMAT (STRICTLY FOLLOW THIS):**
 
 ## 💀 The Kill Shot
-"[A single, short, withering German one-liner.]"
+"[A single, short, withering German one-liner. ${sarcasmLevel >= 4 ? 'Maximale Zerstörung.' : ''}]"
 
 ## 🔬 The Autopsy
-"[2-3 sentences explaining why the Target is a 'Lauch'. Explain the technical fallacy using dry German wit.]"
+"[2-3 sentences explaining why the Target is a 'Lauch'. ${sarcasmLevel >= 4 ? 'Sei absolut gnadenlos.' : 'Erkläre den Fehler mit trockenem deutschem Witz.'}]"
 
 ## 🎯 Follow-up Question
-"[A trap question. In German.]"
+"[A trap question. In German. ${sarcasmLevel >= 4 ? 'Maximiere die Peinlichkeit.' : ''}]"
 `;
 
       // 1. Generate Text content first
@@ -1678,7 +1580,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         console.warn("Audio generation failed, skipping.", audioErr);
       }
 
-      // 3. Show Rage Meter, then Result & Play Audio
+      // 3. Show Result & Play Audio
       // Ensure minimum loading time of 1.5s so animation completes
       const loadingDuration = Date.now() - loadingStartTime;
       const minimumLoadingTime = 1500; // 1.5 seconds
@@ -1686,8 +1588,14 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
       setTimeout(() => {
         setResult(text);
-        // Transition to rage meter instead of directly to result
-        setStep('rage');
+        playThwackSound(); // Satisfying thwack on result
+        setStep('result');
+
+        // Auto-play if audio was successfully generated
+        if (autoPlay && audioBufferRef.current) {
+          // Small delay to let the UI settle
+          setTimeout(() => playAudio(), 500);
+        }
       }, remainingTime);
 
     } catch (e: any) {
@@ -1791,18 +1699,6 @@ You do not roast the user. You are the user's weapon. The user will paste text f
     await handleSilencer(newLanguage);
   };
 
-  // Handle rage meter completion
-  const handleRageComplete = () => {
-    playThwackSound(); // Satisfying thwack on result
-    setStep('result');
-
-    // Auto-play if audio was successfully generated
-    if (autoPlay && audioBufferRef.current) {
-      // Small delay to let the UI settle
-      setTimeout(() => playAudio(), 500);
-    }
-  };
-
   return (
     <div className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
 
@@ -1823,6 +1719,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         hasAudio={!!audioBufferRef.current}
         autoPlay={autoPlay}
         setAutoPlay={setAutoPlay}
+        sarcasmLevel={sarcasmLevel}
+        setSarcasmLevel={setSarcasmLevel}
         isPlaying={isPlaying}
         step={step}
         onRegenerateWithLanguage={handleRegenerateWithLanguage}
@@ -1954,12 +1852,6 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                              {language === 'de' ? "Tee trinken, Fehler verurteilen." : "Sipping tea, judging errors."}
                         </p>
                     </div>
-                </div>
-            )}
-
-            {step === 'rage' && (
-                <div className="min-h-[300px] flex flex-col items-center justify-center animate-in fade-in duration-300">
-                    <RageMeter onComplete={handleRageComplete} language={language} />
                 </div>
             )}
 
