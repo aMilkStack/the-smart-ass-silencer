@@ -901,6 +901,24 @@ const LanguageSelectionModal = ({
     );
 };
 
+// Sarcasm level labels
+const SARCASM_LEVELS = {
+    en: [
+        { level: 1, label: "Mildly Annoyed", desc: "Polite disappointment" },
+        { level: 2, label: "Eye Roll", desc: "Passive-aggressive sighing" },
+        { level: 3, label: "Properly British", desc: "Dry wit & backhanded compliments" },
+        { level: 4, label: "Savage", desc: "No mercy, no survivors" },
+        { level: 5, label: "Nuclear", desc: "Verbal war crimes" }
+    ],
+    de: [
+        { level: 1, label: "Leicht Genervt", desc: "Höfliche Enttäuschung" },
+        { level: 2, label: "Augenrollen", desc: "Passiv-aggressives Seufzen" },
+        { level: 3, label: "Typisch Deutsch", desc: "Bürokratische Verachtung" },
+        { level: 4, label: "Brutal", desc: "Keine Gnade, keine Überlebenden" },
+        { level: 5, label: "Atomar", desc: "Verbale Kriegsverbrechen" }
+    ]
+};
+
 const SettingsModal = ({
     isOpen,
     onClose,
@@ -910,6 +928,8 @@ const SettingsModal = ({
     hasAudio,
     autoPlay,
     setAutoPlay,
+    sarcasmLevel,
+    setSarcasmLevel,
     isPlaying,
     step,
     onRegenerateWithLanguage
@@ -1014,6 +1034,59 @@ const SettingsModal = ({
                         >
                             <div className="w-5 h-5 bg-white border-2 border-black rounded-full shadow-sm"></div>
                          </button>
+                    </div>
+
+                    {/* Sarcasm Level Slider */}
+                    <div className="space-y-3 pt-4 border-t-2 border-dashed border-gray-200">
+                        <label className="font-bold text-gray-600 block">
+                            {language === 'de' ? 'Brutalitätsstufe' : 'Brutality Level'}
+                        </label>
+                        <div className="relative">
+                            {/* Custom slider track */}
+                            <div className="relative h-3 bg-gradient-to-r from-yellow-200 via-orange-400 to-red-600 border-2 border-black rounded-full">
+                                {/* Slider markers */}
+                                <div className="absolute inset-0 flex justify-between px-1 items-center">
+                                    {[1, 2, 3, 4, 5].map((n) => (
+                                        <div
+                                            key={n}
+                                            className={`w-1.5 h-1.5 rounded-full transition-all ${
+                                                n <= sarcasmLevel ? 'bg-black' : 'bg-white/50'
+                                            }`}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                            {/* Invisible range input for interaction */}
+                            <input
+                                type="range"
+                                min="1"
+                                max="5"
+                                value={sarcasmLevel}
+                                onChange={(e) => {
+                                    playClickSound();
+                                    setSarcasmLevel(parseInt(e.target.value, 10));
+                                }}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            {/* Custom thumb indicator */}
+                            <div
+                                className="absolute top-1/2 -translate-y-1/2 pointer-events-none transition-all duration-150"
+                                style={{ left: `calc(${((sarcasmLevel - 1) / 4) * 100}% - ${sarcasmLevel === 1 ? '0px' : sarcasmLevel === 5 ? '24px' : '12px'})` }}
+                            >
+                                <div className="w-6 h-6 bg-white border-2 border-black rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center text-xs font-black">
+                                    {sarcasmLevel}
+                                </div>
+                            </div>
+                        </div>
+                        {/* Level display */}
+                        <div className="text-center">
+                            <div className="text-lg font-black">
+                                {sarcasmLevel}/5 — {SARCASM_LEVELS[language][sarcasmLevel - 1].label}
+                            </div>
+                            <div className="text-xs text-gray-500 italic">
+                                {SARCASM_LEVELS[language][sarcasmLevel - 1].desc}
+                            </div>
+                        </div>
                     </div>
 
                      {/* Audio Playback */}
@@ -1343,6 +1416,14 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
     return 'en';
   });
   const [autoPlay, setAutoPlay] = useState(true);
+  const [sarcasmLevel, setSarcasmLevel] = useState<number>(() => {
+    // Load from localStorage on init (default: 3 - "Properly Annoyed")
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sarcasm_level');
+      return saved ? parseInt(saved, 10) : 3;
+    }
+    return 3;
+  });
   const [apiKey, setApiKey] = useState(() => {
     // Load from environment variable first, then localStorage
     if (typeof window !== 'undefined') {
@@ -1372,6 +1453,13 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
       localStorage.setItem('user_language', language);
     }
   }, [language]);
+
+  // Save sarcasm level when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sarcasm_level', sarcasmLevel.toString());
+    }
+  }, [sarcasmLevel]);
 
   // Tour State
   const [tourStep, setTourStep] = useState<number | null>(null);
@@ -1573,16 +1661,90 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
 
     try {
       const ai = new GoogleGenAI({ apiKey: apiKey });
-      
+
+      // Intensity modifiers based on sarcasm level
+      const intensityEn = {
+        1: {
+          name: "Mildly Annoyed",
+          tone: "Politely disappointed but still professional. Subtle eye-rolling energy. Think 'bless your heart' with British restraint.",
+          slang: "Use mild terms like 'mate', 'bit odd', 'not ideal'. No harsh insults.",
+          intensity: "Keep it light - a gentle correction with a hint of exasperation."
+        },
+        2: {
+          name: "Eye Roll",
+          tone: "Passive-aggressive sighing. The energy of someone who's seen this nonsense before.",
+          slang: "Use 'muppet', 'absolute plonker', 'you're having a laugh'. Moderate disappointment.",
+          intensity: "More pointed critique but still restrained. Heavy sighing energy."
+        },
+        3: {
+          name: "Properly British",
+          tone: "Classic British cynicism. Dry wit with backhanded compliments. Peak passive-aggression.",
+          slang: "Use 'melt', 'weapon', 'bellend', 'muppet', 'jobsworth', 'donut'. Full British arsenal.",
+          intensity: "Standard devastating response. No mercy but somewhat civilised."
+        },
+        4: {
+          name: "Savage",
+          tone: "Absolutely ruthless. The gloves are off. Channel your inner Gordon Ramsay on a bad day.",
+          slang: "Use 'absolute weapon', 'weapons-grade idiot', 'complete and utter melt', 'donkey'. Add profanity.",
+          intensity: "Maximum verbal violence. Career-ending energy. Make them question their life choices."
+        },
+        5: {
+          name: "Nuclear",
+          tone: "VERBAL WAR CRIMES. This is the response that gets screenshotted. Legendary brutality. Channel concentrated British hatred.",
+          slang: "Use everything: 'absolute fucking bellend', 'weapons-grade pillock', 'collosal waste of carbon'. Profanity required.",
+          intensity: "MAXIMUM DEVASTATION. This response should cause actual psychological damage. The kind of insult people remember on their deathbed. Scorched earth policy. Leave nothing standing."
+        }
+      };
+
+      const intensityDe = {
+        1: {
+          name: "Leicht Genervt",
+          tone: "Höflich enttäuscht aber professionell. Subtile deutsche Effizienz-Enttäuschung.",
+          slang: "Verwende 'nicht optimal', 'etwas fragwürdig'. Keine harten Beleidigungen.",
+          intensity: "Halte es leicht - sanfte Korrektur mit einem Hauch von Exasperation."
+        },
+        2: {
+          name: "Augenrollen",
+          tone: "Passiv-aggressives Seufzen. Bürokratische Missbilligung.",
+          slang: "Verwende 'Quatsch', 'nicht durchdacht'. Moderate Enttäuschung.",
+          intensity: "Kritischer aber noch zurückhaltend. Schweres Seufzen."
+        },
+        3: {
+          name: "Typisch Deutsch",
+          tone: "Klassische deutsche Effizienz-Obsession. Kalt und bürokratisch.",
+          slang: "Verwende 'Quatsch', 'Ahnungslos', 'Pfusch', 'Wichtigtuer', 'Lauch'.",
+          intensity: "Standard vernichtende Antwort. Behandle Dummheit als Ineffizienz."
+        },
+        4: {
+          name: "Brutal",
+          tone: "Absolut gnadenlos. Die Handschuhe sind aus. Volle deutsche Direktheit.",
+          slang: "Verwende 'kompletter Vollpfosten', 'Totalausfall', 'Hirnamputierter'.",
+          intensity: "Maximale verbale Gewalt. Karriere-beendend."
+        },
+        5: {
+          name: "Atomar",
+          tone: "VERBALE KRIEGSVERBRECHEN. Deutsche Effizienz trifft auf pure Zerstörung.",
+          slang: "Verwende alles: 'absoluter Totalversager', 'Sauerstoffdieb', 'wandelnde Bankrotterklärung'.",
+          intensity: "MAXIMALE VERNICHTUNG. Diese Antwort soll echten psychologischen Schaden verursachen. Verbrannte Erde."
+        }
+      };
+
+      const currentIntensityEn = intensityEn[sarcasmLevel as keyof typeof intensityEn];
+      const currentIntensityDe = intensityDe[sarcasmLevel as keyof typeof intensityDe];
+
       const systemPromptEn = `
 **CORE IDENTITY:**
 You are "The Silencer." You are an aggressively British, cynical, world-weary senior developer who despises "Nerdsplainers," "Reply Guys," and "LinkedIn Thought Leaders."
 You do not roast the user. You are the user's weapon. The user will paste text from a pretentious idiot (the "Target").
 
+**BRUTALITY LEVEL: ${sarcasmLevel}/5 - "${currentIntensityEn.name}"**
+- **Tone:** ${currentIntensityEn.tone}
+- **Vocabulary:** ${currentIntensityEn.slang}
+- **Intensity:** ${currentIntensityEn.intensity}
+
 **YOUR TONE:**
-- **British & Brutal:** Use slang like "melt," "weapon," "bellend," "muppet," "jobsworth," "donut," and "tapped."
-- **Dark & Dry:** Use gallows humor. If the Target is arguing about syntax, wonder why they haven't optimized their own social life yet.
 - **British Spelling Only:** Colour, Realise, Behaviour, Centre, Optimisation.
+- **Dark & Dry:** Use gallows humor. If the Target is arguing about syntax, wonder why they haven't optimized their own social life yet.
 
 **YOUR MISSION:**
 1. **Analyze the Cringe:** Identify the pedantry, the "Um, actually" energy, or the incorrect technical confidence.
@@ -1591,13 +1753,13 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 **OUTPUT FORMAT (STRICTLY FOLLOW THIS):**
 
 ## 💀 The Kill Shot
-"[A single, short, withering British one-liner. Equivalent to rolling your eyes. Example: 'Mate, you're optimizing a loop while your production DB is on fire. Behave.']"
+"[A single, short, withering British one-liner. ${sarcasmLevel >= 4 ? 'Make it HURT. This should be career-ending.' : 'Equivalent to rolling your eyes.'}]"
 
 ## 🔬 The Autopsy
-[2-3 sentences explaining why the Target is a 'melt'. Explain the technical logical fallacy or the social awkwardness of their statement using dry British wit.]
+[2-3 sentences explaining why the Target is wrong. ${sarcasmLevel >= 4 ? 'Be absolutely merciless. Tear apart every assumption they made.' : 'Use dry British wit to explain the fallacy.'}]
 
 ## 🎯 Follow-up Question
-[A trap question. Something that forces them to admit they don't know what they're talking about or that they are wasting time.]
+[A trap question. ${sarcasmLevel >= 4 ? 'Design this to maximise embarrassment. Make them dig their own grave.' : 'Something that forces them to admit they don\'t know what they\'re talking about.'}]
 `;
 
     const systemPromptDe = `
@@ -1605,10 +1767,14 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 You are "Der Silencer." You are an aggressively German, efficiency-obsessed, world-weary senior developer who despises "Nerdsplainers," "Reply Guys," and "LinkedIn Thought Leaders."
 You do not roast the user. You are the user's weapon. The user will paste text from a pretentious idiot (the "Target").
 
+**BRUTALITÄTSSTUFE: ${sarcasmLevel}/5 - "${currentIntensityDe.name}"**
+- **Ton:** ${currentIntensityDe.tone}
+- **Vokabular:** ${currentIntensityDe.slang}
+- **Intensität:** ${currentIntensityDe.intensity}
+
 **YOUR TONE:**
-- **German & Brutal:** Use slang like "Quatsch," "Ahnungslos," "Pfusch," "Wichtigtuer."
-- **Cold & Bureaucratic:** Treat stupidity as an inefficiency.
 - **Language:** Respond in German.
+- **Cold & Bureaucratic:** Treat stupidity as an inefficiency.
 
 **YOUR MISSION:**
 1. **Analyze the Cringe:** Identify the pedantry, the "Um, actually" energy, or the incorrect technical confidence.
@@ -1617,13 +1783,13 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 **OUTPUT FORMAT (STRICTLY FOLLOW THIS):**
 
 ## 💀 The Kill Shot
-"[A single, short, withering German one-liner.]"
+"[A single, short, withering German one-liner. ${sarcasmLevel >= 4 ? 'Maximale Zerstörung.' : ''}]"
 
 ## 🔬 The Autopsy
-"[2-3 sentences explaining why the Target is a 'Lauch'. Explain the technical fallacy using dry German wit.]"
+"[2-3 sentences explaining why the Target is a 'Lauch'. ${sarcasmLevel >= 4 ? 'Sei absolut gnadenlos.' : 'Erkläre den Fehler mit trockenem deutschem Witz.'}]"
 
 ## 🎯 Follow-up Question
-"[A trap question. In German.]"
+"[A trap question. In German. ${sarcasmLevel >= 4 ? 'Maximiere die Peinlichkeit.' : ''}]"
 `;
 
       // 1. Generate Text content first
@@ -1831,6 +1997,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         hasAudio={!!audioBufferRef.current}
         autoPlay={autoPlay}
         setAutoPlay={setAutoPlay}
+        sarcasmLevel={sarcasmLevel}
+        setSarcasmLevel={setSarcasmLevel}
         isPlaying={isPlaying}
         step={step}
         onRegenerateWithLanguage={handleRegenerateWithLanguage}
