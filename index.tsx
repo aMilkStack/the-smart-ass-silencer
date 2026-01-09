@@ -1338,8 +1338,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             {/* Title Section */}
             <div className="mb-2 text-center relative flex flex-col items-center">
                 <div className="relative w-full max-w-lg h-32 md:h-40 flex items-center justify-center">
-                    <img 
-                        src="/logo.png" 
+                    <img
+                        src={`${import.meta.env.BASE_URL}logo.png`}
                         alt="Jazz's Smartass Silencer" 
                         className="w-full h-full object-contain transform -rotate-1 hover:rotate-0 transition-transform duration-300 drop-shadow-sm"
                         onError={(e) => {
