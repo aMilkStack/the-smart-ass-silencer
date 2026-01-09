@@ -595,6 +595,49 @@ const CopyButton = ({ text, language }: { text: string, language: 'en' | 'de' })
     );
 };
 
+const LanguageSelectionModal = ({
+    isOpen,
+    onSelectLanguage
+}: {
+    isOpen: boolean;
+    onSelectLanguage: (lang: 'en' | 'de') => void;
+}) => {
+    if (!isOpen) return null;
+
+    const handleSelect = (lang: 'en' | 'de') => {
+        localStorage.setItem('language_selected', 'true');
+        localStorage.setItem('user_language', lang);
+        onSelectLanguage(lang);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white wobbly-box p-8 md:p-10 max-w-md w-full relative text-center space-y-6">
+                <div className="space-y-2">
+                    <h2 className="text-3xl md:text-4xl font-black">🌍</h2>
+                    <h2 className="text-2xl md:text-3xl font-black">Choose Your Language</h2>
+                    <p className="text-lg md:text-xl font-black">Wähle deine Sprache</p>
+                </div>
+
+                <div className="space-y-3">
+                    <button
+                        onClick={() => handleSelect('en')}
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
+                    >
+                        🇬🇧 English
+                    </button>
+                    <button
+                        onClick={() => handleSelect('de')}
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
+                    >
+                        🇩🇪 Deutsch
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const SettingsModal = ({
     isOpen,
     onClose,
@@ -605,32 +648,13 @@ const SettingsModal = ({
     autoPlay,
     setAutoPlay,
     isPlaying,
-    apiKey,
-    setApiKey,
     step,
     onRegenerateWithLanguage
 }: any) => {
-    const [showKey, setShowKey] = useState(false);
-    const [tempKey, setTempKey] = useState(apiKey);
-    const [saved, setSaved] = useState(false);
     const [showLanguageConfirm, setShowLanguageConfirm] = useState(false);
     const [pendingLanguage, setPendingLanguage] = useState<'en' | 'de' | null>(null);
 
-    // Sync tempKey when modal opens
-    useEffect(() => {
-        if (isOpen) {
-            setTempKey(apiKey);
-            setSaved(false);
-        }
-    }, [isOpen, apiKey]);
-
     if (!isOpen) return null;
-
-    const handleSaveKey = () => {
-        setApiKey(tempKey);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-    };
 
     const handleLanguageChange = (newLang: 'en' | 'de') => {
         if (newLang === language) return;
@@ -665,14 +689,7 @@ const SettingsModal = ({
         autoPlayLabel: language === 'de' ? 'Beleidigungen automatisch abspielen' : 'Auto-play Insults',
         lastTransmission: language === 'de' ? 'Letzte Übertragung' : 'Last Transmission',
         replayAudio: language === 'de' ? 'Audio wiederholen' : 'Replay Audio',
-        playing: language === 'de' ? 'Spielt ab...' : 'Playing...',
-        apiKeyLabel: language === 'de' ? 'Gemini API-Schlüssel' : 'Gemini API Key',
-        apiKeyPlaceholder: language === 'de' ? 'Dein API-Schlüssel hier...' : 'Enter your API key here...',
-        apiKeyHint: language === 'de' ? 'Hol dir einen Schlüssel bei Google AI Studio' : 'Get a key from Google AI Studio',
-        show: language === 'de' ? 'Zeigen' : 'Show',
-        hide: language === 'de' ? 'Verstecken' : 'Hide',
-        save: language === 'de' ? 'Speichern' : 'Save',
-        saved: language === 'de' ? 'Gespeichert!' : 'Saved!'
+        playing: language === 'de' ? 'Spielt ab...' : 'Playing...'
     };
 
     return (
@@ -690,51 +707,6 @@ const SettingsModal = ({
                 </h2>
 
                 <div className="space-y-6">
-                    {/* API Key Input */}
-                    <div className="space-y-2">
-                        <label className="font-bold text-gray-600 block">{t.apiKeyLabel}</label>
-                        <div className="flex gap-2">
-                            <div className="relative flex-1">
-                                <input
-                                    type={showKey ? "text" : "password"}
-                                    value={tempKey}
-                                    onChange={(e) => setTempKey(e.target.value)}
-                                    placeholder={t.apiKeyPlaceholder}
-                                    className="w-full p-3 pr-16 border-2 border-gray-200 focus:border-black outline-none font-mono text-sm transition-colors"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowKey(!showKey)}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 hover:text-black transition-colors px-2 py-1"
-                                >
-                                    {showKey ? t.hide : t.show}
-                                </button>
-                            </div>
-                            <button
-                                onClick={handleSaveKey}
-                                disabled={!tempKey.trim() || tempKey === apiKey}
-                                className={`px-4 py-2 font-bold border-2 transition-all ${
-                                    saved
-                                        ? 'bg-green-500 text-white border-green-500'
-                                        : 'bg-black text-white border-black hover:bg-white hover:text-black disabled:opacity-30 disabled:cursor-not-allowed'
-                                }`}
-                            >
-                                {saved ? <Check size={20} /> : t.save}
-                            </button>
-                        </div>
-                        <a
-                            href="https://aistudio.google.com/app/apikey"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-500 hover:text-blue-700 underline"
-                        >
-                            {t.apiKeyHint} →
-                        </a>
-                        {apiKey && (
-                            <div className="text-xs text-green-600 font-bold">● {language === 'de' ? 'Schlüssel aktiv' : 'Key active'}</div>
-                        )}
-                    </div>
-
                     {/* Language Switch */}
                     <div className="space-y-2">
                         <label className="font-bold text-gray-600 block">{t.languageLabel}</label>
@@ -1093,12 +1065,25 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
 
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
-  const [language, setLanguage] = useState<'en' | 'de'>('en');
-  const [autoPlay, setAutoPlay] = useState(true);
-  const [apiKey, setApiKey] = useState(() => {
+  const [showLanguageSelect, setShowLanguageSelect] = useState(() => {
+    // Show language selection if not set before
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('language_selected');
+    }
+    return false;
+  });
+  const [language, setLanguage] = useState<'en' | 'de'>(() => {
     // Load from localStorage on init
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('gemini_api_key') || '';
+      return (localStorage.getItem('user_language') as 'en' | 'de') || 'en';
+    }
+    return 'en';
+  });
+  const [autoPlay, setAutoPlay] = useState(true);
+  const [apiKey, setApiKey] = useState(() => {
+    // Load from environment variable first, then localStorage
+    if (typeof window !== 'undefined') {
+      return import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('gemini_api_key') || '';
     }
     return '';
   });
@@ -1109,6 +1094,13 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
       localStorage.setItem('gemini_api_key', apiKey);
     }
   }, [apiKey]);
+
+  // Save language preference when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user_language', language);
+    }
+  }, [language]);
 
   // Tour State
   const [tourStep, setTourStep] = useState<number | null>(null);
@@ -1516,6 +1508,14 @@ You do not roast the user. You are the user's weapon. The user will paste text f
   return (
     <div className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
 
+      <LanguageSelectionModal
+        isOpen={showLanguageSelect}
+        onSelectLanguage={(lang) => {
+          setLanguage(lang);
+          setShowLanguageSelect(false);
+        }}
+      />
+
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
@@ -1526,8 +1526,6 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         autoPlay={autoPlay}
         setAutoPlay={setAutoPlay}
         isPlaying={isPlaying}
-        apiKey={apiKey}
-        setApiKey={setApiKey}
         step={step}
         onRegenerateWithLanguage={handleRegenerateWithLanguage}
       />
