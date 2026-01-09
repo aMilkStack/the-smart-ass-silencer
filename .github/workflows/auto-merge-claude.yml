@@ -38,3 +38,10 @@ jobs:
 
           # Merge the PR immediately
           gh pr merge "$BRANCH_NAME" --merge --delete-branch
+
+      - name: Trigger deployment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Trigger the deploy workflow manually after merge
+          gh workflow run deploy.yml --ref main
