@@ -1505,7 +1505,7 @@ const SettingsModal = ({
             { value: 'default', label: 'Default' },
             { value: 'glaswegian', label: 'Glaswegian', desc: 'Aggressive & rapid-fire' },
             { value: 'scouse', label: 'Scouse', desc: 'Sharp wit & humiliating' },
-            { value: 'rp', label: 'RP (Posh)', desc: 'Cold & calculated' },
+            { value: 'rp', label: 'Posh', desc: 'Cold & calculated' },
         ];
 
     const speedOptions = [
