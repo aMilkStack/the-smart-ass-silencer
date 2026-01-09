@@ -1700,7 +1700,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
   };
 
   return (
-    <div className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
+    <div className="h-screen overflow-auto relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
 
       <LanguageSelectionModal
         isOpen={showLanguageSelect}
