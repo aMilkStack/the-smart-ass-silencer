@@ -1559,7 +1559,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             </div>
 
             {/* Tape Effect */}
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-10 bg-pink-200 opacity-80 -rotate-1 shadow-sm z-20" style={{clipPath: 'polygon(2% 0, 100% 0, 98% 100%, 0% 100%)'}}></div>
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-10 opacity-90 -rotate-1 shadow-sm z-20" style={{clipPath: 'polygon(2% 0, 100% 0, 98% 100%, 0% 100%)', backgroundColor: '#ff1493'}}></div>
 
             {/* Title Section */}
             <div className="mb-6 mt-2 text-center relative flex flex-col items-center">

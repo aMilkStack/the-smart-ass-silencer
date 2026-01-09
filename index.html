@@ -53,7 +53,7 @@
     <style>
       body {
         font-family: 'Gochi Hand', cursive;
-        background-color: #fffdf5;
+        background-color: #0f0f0f;
         color: #2a2a2a;
         -webkit-tap-highlight-color: transparent; /* Remove blue highlight on tap */
       }
@@ -64,9 +64,9 @@
 
       /* Notebook Grid Pattern */
       .paper-bg {
-        background-image: 
-          linear-gradient(#a3d5ff 1px, transparent 1px), 
-          linear-gradient(90deg, #a3d5ff 1px, transparent 1px);
+        background-image:
+          linear-gradient(#1a1a1a 1px, transparent 1px),
+          linear-gradient(90deg, #1a1a1a 1px, transparent 1px);
         background-size: 24px 24px;
         background-position: center top;
       }
@@ -76,7 +76,10 @@
         border: 3px solid #2a2a2a;
         /* The signature organic shape */
         border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
-        box-shadow: 4px 4px 0px 0px #2a2a2a;
+        box-shadow:
+          4px 4px 0px 0px #2a2a2a,
+          0 0 40px rgba(255, 255, 255, 0.1),
+          0 0 80px rgba(255, 255, 255, 0.05);
         transition: border-radius 0.4s ease-in-out, transform 0.3s ease-out, box-shadow 0.3s ease;
         background: white;
       }
@@ -85,7 +88,10 @@
         /* Subtle shift instead of extreme inversion to keep content attached */
         border-radius: 245px 20px 215px 25px / 25px 215px 20px 245px;
         transform: rotate(-0.5deg) scale(1.005);
-        box-shadow: 6px 6px 0px 0px #2a2a2a;
+        box-shadow:
+          6px 6px 0px 0px #2a2a2a,
+          0 0 50px rgba(255, 255, 255, 0.15),
+          0 0 100px rgba(255, 255, 255, 0.08);
       }
 
       .wobbly-box:active {
