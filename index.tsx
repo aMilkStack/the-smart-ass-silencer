@@ -1754,7 +1754,14 @@ const SettingsModal = ({
                                 onClick={onPlayAudio}
                                 disabled={isPlaying}
                                 className="w-full p-4 border-2 border-black bg-yellow-300 font-black text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2 active:shadow-none active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50 disabled:cursor-not-allowed"
-                            {/* High Contrast */}
+                            >
+                                <Volume2 size={24} className={isPlaying ? "animate-pulse" : ""} />
+                                {isPlaying ? (language === 'de' ? 'Spielt...' : 'Playing...') : (language === 'de' ? 'Anhören' : 'Listen')}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* High Contrast */}
                             <div className="flex items-center justify-between">
                                 <label className="font-bold text-gray-600 flex items-center gap-2">
                                     <Eye size={16} className="text-gray-500" />
