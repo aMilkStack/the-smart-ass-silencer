@@ -359,6 +359,18 @@ const playPopSound = () => {
   } catch (e) {}
 };
 
+// Pen scratch sound for handwriting effect
+const playPenScratchSound = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+    // Create noise buffer for scratch effect
+    const bufferSize = audioCtx.sampleRate * 0.03; // 30ms
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.15;
 // --- Haptic Feedback ---
 const triggerHaptic = (style: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') => {
   if (!navigator.vibrate) return;
@@ -477,6 +489,15 @@ const playExplosionSound = () => {
     const noise = audioCtx.createBufferSource();
     noise.buffer = buffer;
 
+    // Bandpass filter for pen-like sound
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 2000 + Math.random() * 1000;
+    filter.Q.value = 0.5;
+
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(0.04, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
     // Low pass filter for rumble
     const filter = audioCtx.createBiquadFilter();
     filter.type = 'lowpass';
@@ -492,6 +513,7 @@ const playExplosionSound = () => {
     gainNode.connect(audioCtx.destination);
 
     noise.start(audioCtx.currentTime);
+    noise.stop(audioCtx.currentTime + 0.03);
     noise.stop(audioCtx.currentTime + 0.3);
 
     // Add a bass thump
@@ -1254,6 +1276,221 @@ const RoughHighlight = ({
     );
 };
 
+// --- Handwriting Textarea Component ---
+interface HandwritingTextareaProps {
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+    onFocus?: () => void;
+    onBlur?: () => void;
+    placeholder?: string;
+    className?: string;
+    inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+    enableSound?: boolean;
+    // CSS custom properties for timing (tuneable)
+    charRevealDuration?: number; // ms per character animation
+    charRevealDelay?: number; // base delay between chars
+    pasteThreshold?: number; // chars added at once to trigger fast reveal
+}
+
+const HandwritingTextarea = ({
+    value,
+    onChange,
+    onFocus,
+    onBlur,
+    placeholder,
+    className = '',
+    inputRef,
+    enableSound = false,
+    charRevealDuration = 150,
+    charRevealDelay = 30,
+    pasteThreshold = 3
+}: HandwritingTextareaProps) => {
+    const localRef = useRef<HTMLTextAreaElement>(null);
+    const textareaRef = inputRef || localRef;
+    const overlayRef = useRef<HTMLDivElement>(null);
+
+    // Track revealed character count and animation states
+    const [revealedCount, setRevealedCount] = useState(value.length);
+    const [animatingChars, setAnimatingChars] = useState<Set<number>>(new Set());
+    const prevValueRef = useRef(value);
+    const animationFrameRef = useRef<number | null>(null);
+    const soundThrottleRef = useRef<number>(0);
+
+    // Performance tracking for fallback
+    const [performanceOk, setPerformanceOk] = useState(true);
+    const frameTimesRef = useRef<number[]>([]);
+
+    // Handle value changes and trigger animations
+    useEffect(() => {
+        const prevValue = prevValueRef.current;
+        const prevLen = prevValue.length;
+        const newLen = value.length;
+
+        // Characters were added
+        if (newLen > prevLen) {
+            const charsAdded = newLen - prevLen;
+            const isPaste = charsAdded > pasteThreshold;
+
+            if (isPaste || !performanceOk) {
+                // Fast reveal for paste or performance fallback
+                setRevealedCount(newLen);
+                setAnimatingChars(new Set());
+            } else {
+                // Animate new characters one by one
+                const newAnimating = new Set<number>();
+                for (let i = prevLen; i < newLen; i++) {
+                    newAnimating.add(i);
+                }
+                setAnimatingChars(prev => new Set([...prev, ...newAnimating]));
+
+                // Play sound for first new character (throttled)
+                if (enableSound && Date.now() - soundThrottleRef.current > 50) {
+                    soundThrottleRef.current = Date.now();
+                    playPenScratchSound();
+                }
+
+                // Stagger reveal of new characters
+                newAnimating.forEach((charIndex, i) => {
+                    const delay = (charIndex - prevLen) * charRevealDelay + Math.random() * 20;
+                    setTimeout(() => {
+                        setRevealedCount(prev => Math.max(prev, charIndex + 1));
+                        setAnimatingChars(prev => {
+                            const next = new Set(prev);
+                            next.delete(charIndex);
+                            return next;
+                        });
+                    }, delay);
+                });
+            }
+        } else if (newLen < prevLen) {
+            // Characters were deleted - instant update
+            setRevealedCount(newLen);
+            // Remove any animating chars that no longer exist
+            setAnimatingChars(prev => {
+                const next = new Set<number>();
+                prev.forEach(i => {
+                    if (i < newLen) next.add(i);
+                });
+                return next;
+            });
+        }
+
+        prevValueRef.current = value;
+    }, [value, pasteThreshold, charRevealDelay, enableSound, performanceOk]);
+
+    // Performance monitoring
+    useEffect(() => {
+        let lastTime = performance.now();
+
+        const checkPerformance = () => {
+            const now = performance.now();
+            const delta = now - lastTime;
+            lastTime = now;
+
+            frameTimesRef.current.push(delta);
+            if (frameTimesRef.current.length > 30) {
+                frameTimesRef.current.shift();
+            }
+
+            // If average frame time > 50ms (< 20fps), disable animations
+            if (frameTimesRef.current.length >= 10) {
+                const avg = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
+                if (avg > 50 && performanceOk) {
+                    setPerformanceOk(false);
+                    setRevealedCount(value.length);
+                    setAnimatingChars(new Set());
+                }
+            }
+
+            animationFrameRef.current = requestAnimationFrame(checkPerformance);
+        };
+
+        animationFrameRef.current = requestAnimationFrame(checkPerformance);
+
+        return () => {
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+        };
+    }, [performanceOk, value.length]);
+
+    // Sync scroll between textarea and overlay
+    const handleScroll = () => {
+        if (textareaRef.current && overlayRef.current) {
+            overlayRef.current.scrollTop = textareaRef.current.scrollTop;
+            overlayRef.current.scrollLeft = textareaRef.current.scrollLeft;
+        }
+    };
+
+    // Render the overlay text with animations
+    const renderOverlayText = () => {
+        if (!performanceOk) {
+            // Fallback: just show the text
+            return <span className="whitespace-pre-wrap">{value}</span>;
+        }
+
+        return value.split('').map((char, index) => {
+            const isRevealed = index < revealedCount;
+            const isAnimating = animatingChars.has(index);
+
+            // Slight random wobble for natural handwriting feel
+            const wobble = isAnimating ? `rotate(${(Math.random() - 0.5) * 2}deg)` : 'none';
+
+            return (
+                <span
+                    key={index}
+                    className="handwriting-char"
+                    style={{
+                        opacity: isRevealed ? 1 : 0,
+                        transform: isAnimating ? `scale(1.1) ${wobble}` : 'scale(1)',
+                        transition: isAnimating
+                            ? `opacity ${charRevealDuration}ms ease-out, transform ${charRevealDuration}ms ease-out`
+                            : 'none',
+                        display: 'inline',
+                        whiteSpace: 'pre-wrap',
+                    }}
+                >
+                    {char}
+                </span>
+            );
+        });
+    };
+
+    return (
+        <div className="handwriting-textarea-container relative">
+            {/* The visual overlay - shows handwriting animation */}
+            <div
+                ref={overlayRef}
+                className={`handwriting-overlay absolute inset-0 pointer-events-none overflow-hidden ${className}`}
+                style={{
+                    // Match textarea styling exactly
+                    whiteSpace: 'pre-wrap',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
+                }}
+                aria-hidden="true"
+            >
+                {value ? renderOverlayText() : (
+                    <span className="text-gray-300">{placeholder}</span>
+                )}
+            </div>
+
+            {/* The actual textarea - transparent but handles all input */}
+            <textarea
+                ref={textareaRef}
+                value={value}
+                onChange={onChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                onScroll={handleScroll}
+                placeholder=""
+                className={`${className} handwriting-textarea-input`}
+                style={{
+                    color: 'transparent',
+                    caretColor: '#2a2a2a',
+                    WebkitTextFillColor: 'transparent',
+                }}
+            />
 // Rage Meter Component - Builds up and explodes!
 const RageMeter = ({
     onComplete,
@@ -4213,6 +4450,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                                 {a11y.inputLabel}
                             </label>
                             <RoughHighlight show={inputFocused} type="bracket" color="#ef4444" padding={4} strokeWidth={2} iterations={2} animationDuration={400}>
+                                <HandwritingTextarea
+                                    inputRef={inputRef}
                                 <textarea
                                     id={inputId}
                         <div className="relative animate-bounce-in" style={{ animationDelay: '0.1s', opacity: 0, animationFillMode: 'forwards' }}>
@@ -4223,6 +4462,12 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                                     onChange={(e) => setInput(e.target.value)}
                                     onFocus={() => setInputFocused(true)}
                                     onBlur={() => setInputFocused(false)}
+                                    className={`w-full h-40 wobbly-input p-4 pb-12 text-lg md:text-xl bg-gray-50 focus:bg-white focus:ring-0 outline-none resize-none font-hand text-gray-800 leading-normal shadow-inner relative z-10 transition-all duration-300 ${inputFocused ? 'scale-[1.01] shadow-lg' : ''}`}
+                                    placeholder={language === 'de' ? "z.B. 'Eigentlich ist HTML eine Programmiersprache'" : "e.g. 'Actually, HTML is a programming language'"}
+                                    enableSound={true}
+                                    charRevealDuration={120}
+                                    charRevealDelay={25}
+                                    pasteThreshold={5}
                                     onKeyDown={(e) => {
                                         // Ctrl/Cmd + Enter to submit
                                         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && input.trim()) {
