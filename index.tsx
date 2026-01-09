@@ -518,11 +518,15 @@ const SettingsModal = ({
     setAutoPlay,
     isPlaying,
     apiKey,
-    setApiKey
+    setApiKey,
+    step,
+    onRegenerateWithLanguage
 }: any) => {
     const [showKey, setShowKey] = useState(false);
     const [tempKey, setTempKey] = useState(apiKey);
     const [saved, setSaved] = useState(false);
+    const [showLanguageConfirm, setShowLanguageConfirm] = useState(false);
+    const [pendingLanguage, setPendingLanguage] = useState<'en' | 'de' | null>(null);
 
     // Sync tempKey when modal opens
     useEffect(() => {
@@ -538,6 +542,33 @@ const SettingsModal = ({
         setApiKey(tempKey);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+    };
+
+    const handleLanguageChange = (newLang: 'en' | 'de') => {
+        if (newLang === language) return;
+
+        // If viewing results, show confirmation
+        if (step === 'result') {
+            setPendingLanguage(newLang);
+            setShowLanguageConfirm(true);
+        } else {
+            setLanguage(newLang);
+        }
+    };
+
+    const confirmLanguageChange = () => {
+        if (pendingLanguage) {
+            setLanguage(pendingLanguage);
+            onRegenerateWithLanguage(pendingLanguage);
+            setShowLanguageConfirm(false);
+            setPendingLanguage(null);
+            onClose();
+        }
+    };
+
+    const cancelLanguageChange = () => {
+        setShowLanguageConfirm(false);
+        setPendingLanguage(null);
     };
 
     const t = {
@@ -619,9 +650,15 @@ const SettingsModal = ({
                     {/* Language Switch */}
                     <div className="space-y-2">
                         <label className="font-bold text-gray-600 block">{t.languageLabel}</label>
+                        {step === 'result' && (
+                            <div className="text-xs text-amber-600 mb-2 flex items-start gap-1">
+                                <span>⚠️</span>
+                                <span>{language === 'de' ? 'Sprachwechsel erzeugt neues Ergebnis' : 'Changing language will regenerate result'}</span>
+                            </div>
+                        )}
                         <div className="flex gap-2">
                             <button
-                                onClick={() => setLanguage('en')}
+                                onClick={() => handleLanguageChange('en')}
                                 className={`flex-1 p-3 font-bold border-2 transition-all ${
                                     language === 'en'
                                     ? 'bg-black text-white border-black transform -rotate-1 shadow-md'
@@ -631,7 +668,7 @@ const SettingsModal = ({
                                 English
                             </button>
                             <button
-                                onClick={() => setLanguage('de')}
+                                onClick={() => handleLanguageChange('de')}
                                 className={`flex-1 p-3 font-bold border-2 transition-all ${
                                     language === 'de'
                                     ? 'bg-black text-white border-black transform rotate-1 shadow-md'
@@ -672,6 +709,36 @@ const SettingsModal = ({
                      )}
                 </div>
             </div>
+
+            {/* Language Change Confirmation Dialog */}
+            {showLanguageConfirm && (
+                <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 z-10">
+                    <div className="bg-white wobbly-box p-6 max-w-xs w-full">
+                        <h3 className="text-xl font-black mb-3">
+                            {language === 'de' ? '⚠️ Sprache wechseln?' : '⚠️ Change Language?'}
+                        </h3>
+                        <p className="text-gray-700 mb-4 leading-relaxed">
+                            {language === 'de'
+                                ? 'Das Ergebnis wird neu generiert, um die Antwort und das Audio in der neuen Sprache zu erhalten.'
+                                : 'This will regenerate the result to get the response and audio in the new language.'}
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={cancelLanguageChange}
+                                className="flex-1 p-3 border-2 border-gray-300 text-gray-600 font-bold hover:bg-gray-100 transition-all"
+                            >
+                                {language === 'de' ? 'Abbrechen' : 'Cancel'}
+                            </button>
+                            <button
+                                onClick={confirmLanguageChange}
+                                className="flex-1 p-3 bg-black text-white font-bold border-2 border-black hover:bg-gray-800 transition-all"
+                            >
+                                {language === 'de' ? 'Neu generieren' : 'Regenerate'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -1341,9 +1408,16 @@ You do not roast the user. You are the user's weapon. The user will paste text f
     );
   };
 
+  // Handle regenerating result when language changes
+  const handleRegenerateWithLanguage = async (newLanguage: 'en' | 'de') => {
+    // Language is already set by SettingsModal before calling this
+    // Just regenerate with the current input
+    await handleSilencer();
+  };
+
   return (
     <div className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
-      
+
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
@@ -1356,6 +1430,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         isPlaying={isPlaying}
         apiKey={apiKey}
         setApiKey={setApiKey}
+        step={step}
+        onRegenerateWithLanguage={handleRegenerateWithLanguage}
       />
 
       {/* Main Container */}
