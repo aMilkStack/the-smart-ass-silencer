@@ -72,19 +72,89 @@ const playPopSound = () => {
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-    
+
     oscillator.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-    
+
     oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.05);
     oscillator.type = 'sine';
-    
+
     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-    
+
     oscillator.start(audioCtx.currentTime);
     oscillator.stop(audioCtx.currentTime + 0.1);
+  } catch (e) {}
+};
+
+const playExplosionSound = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+    // Create noise for explosion
+    const bufferSize = audioCtx.sampleRate * 0.3;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    // Low pass filter for rumble
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+
+    noise.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    noise.start(audioCtx.currentTime);
+    noise.stop(audioCtx.currentTime + 0.3);
+
+    // Add a bass thump
+    const osc = audioCtx.createOscillator();
+    const oscGain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.2);
+    oscGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+    osc.connect(oscGain);
+    oscGain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.2);
+  } catch (e) {}
+};
+
+const playRageTickSound = (intensity: number) => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    // Higher pitch as intensity increases
+    const baseFreq = 200 + (intensity * 400);
+    oscillator.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+    oscillator.type = 'square';
+
+    gainNode.gain.setValueAtTime(0.05 + (intensity * 0.05), audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+    oscillator.start(audioCtx.currentTime);
+    oscillator.stop(audioCtx.currentTime + 0.05);
   } catch (e) {}
 };
 
@@ -551,6 +621,200 @@ const RoughHighlight = ({
     return (
         <div ref={ref} className={`inline-block w-full ${className}`}>
             {children}
+        </div>
+    );
+};
+
+// Rage Meter Component - Builds up and explodes!
+const RageMeter = ({
+    onComplete,
+    language
+}: {
+    onComplete: () => void;
+    language: 'en' | 'de';
+}) => {
+    const [progress, setProgress] = useState(0);
+    const [isShaking, setIsShaking] = useState(false);
+    const [isExploding, setIsExploding] = useState(false);
+    const [particles, setParticles] = useState<Array<{id: number; x: number; y: number; tx: number; ty: number; r: number; color: string; size: number}>>([]);
+    const [showFlash, setShowFlash] = useState(false);
+    const meterRef = useRef<HTMLDivElement>(null);
+    const lastTickRef = useRef(0);
+
+    const rageLabelsEn = [
+        { threshold: 0, label: "Mildly annoyed" },
+        { threshold: 20, label: "Eye twitching" },
+        { threshold: 40, label: "Blood pressure rising" },
+        { threshold: 60, label: "Seeing red" },
+        { threshold: 80, label: "MAXIMUM RAGE" },
+        { threshold: 95, label: "CRITICAL!!!" },
+    ];
+
+    const rageLabelsDe = [
+        { threshold: 0, label: "Leicht genervt" },
+        { threshold: 20, label: "Augenzucken" },
+        { threshold: 40, label: "Blutdruck steigt" },
+        { threshold: 60, label: "Sehe rot" },
+        { threshold: 80, label: "MAXIMALE WUT" },
+        { threshold: 95, label: "KRITISCH!!!" },
+    ];
+
+    const rageLabels = language === 'de' ? rageLabelsDe : rageLabelsEn;
+
+    const getCurrentLabel = () => {
+        for (let i = rageLabels.length - 1; i >= 0; i--) {
+            if (progress >= rageLabels[i].threshold) {
+                return rageLabels[i].label;
+            }
+        }
+        return rageLabels[0].label;
+    };
+
+    useEffect(() => {
+        // Animate progress
+        const duration = 2000; // 2 seconds to fill
+        const startTime = Date.now();
+
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const newProgress = Math.min(100, (elapsed / duration) * 100);
+
+            // Play tick sounds at intervals
+            const tickInterval = 10;
+            if (Math.floor(newProgress / tickInterval) > lastTickRef.current) {
+                lastTickRef.current = Math.floor(newProgress / tickInterval);
+                playRageTickSound(newProgress / 100);
+            }
+
+            setProgress(newProgress);
+
+            // Start shaking at 50%
+            if (newProgress >= 50 && !isShaking) {
+                setIsShaking(true);
+            }
+
+            if (newProgress < 100) {
+                requestAnimationFrame(animate);
+            } else {
+                // Explosion time!
+                triggerExplosion();
+            }
+        };
+
+        requestAnimationFrame(animate);
+    }, []);
+
+    const triggerExplosion = () => {
+        setIsExploding(true);
+        setShowFlash(true);
+        playExplosionSound();
+
+        // Generate particles
+        const newParticles: typeof particles = [];
+        const colors = ['#ef4444', '#f97316', '#eab308', '#dc2626', '#fbbf24'];
+
+        for (let i = 0; i < 30; i++) {
+            const angle = (Math.PI * 2 * i) / 30 + (Math.random() - 0.5) * 0.5;
+            const distance = 100 + Math.random() * 150;
+            newParticles.push({
+                id: i,
+                x: 0,
+                y: 0,
+                tx: Math.cos(angle) * distance,
+                ty: Math.sin(angle) * distance,
+                r: Math.random() * 720 - 360,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                size: 8 + Math.random() * 16
+            });
+        }
+        setParticles(newParticles);
+
+        // Hide flash quickly
+        setTimeout(() => setShowFlash(false), 150);
+
+        // Complete after explosion animation
+        setTimeout(() => {
+            onComplete();
+        }, 600);
+    };
+
+    const shakeIntensity = isShaking ? Math.min((progress - 50) / 50, 1) : 0;
+
+    return (
+        <div className="flex flex-col items-center gap-4 py-6 relative">
+            {/* Flash overlay */}
+            {showFlash && (
+                <div className="fixed inset-0 bg-red-500 animate-flash z-50 pointer-events-none" />
+            )}
+
+            {/* Rage Label */}
+            <div className={`text-2xl md:text-3xl font-black text-center transition-all duration-200 ${
+                progress >= 80 ? 'text-red-600 scale-110' : progress >= 60 ? 'text-orange-500' : 'text-gray-800'
+            }`}>
+                {getCurrentLabel()}
+            </div>
+
+            {/* Meter Container */}
+            <div
+                ref={meterRef}
+                className={`relative w-full max-w-md h-12 md:h-16 wobbly-box bg-gray-100 overflow-hidden ${
+                    isShaking ? 'animate-rage-shake' : ''
+                } ${progress >= 80 ? 'rage-glow' : ''}`}
+                style={{
+                    transform: isShaking ? `translateX(${(Math.random() - 0.5) * shakeIntensity * 6}px)` : undefined,
+                    transition: isExploding ? 'transform 0.3s ease-out' : undefined
+                }}
+            >
+                {/* Fill Bar */}
+                <div
+                    className={`absolute inset-y-0 left-0 transition-all duration-100 ${
+                        isExploding ? 'animate-rage-explode' : ''
+                    }`}
+                    style={{
+                        width: `${progress}%`,
+                        background: progress < 50
+                            ? 'linear-gradient(90deg, #fbbf24, #f97316)'
+                            : progress < 80
+                            ? 'linear-gradient(90deg, #f97316, #ef4444)'
+                            : 'linear-gradient(90deg, #ef4444, #dc2626)',
+                    }}
+                />
+
+                {/* Percentage */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-xl md:text-2xl font-black ${
+                        progress > 50 ? 'text-white' : 'text-gray-800'
+                    } drop-shadow-md`}>
+                        {Math.round(progress)}%
+                    </span>
+                </div>
+
+                {/* Particles */}
+                {particles.map(particle => (
+                    <div
+                        key={particle.id}
+                        className="rage-particle absolute"
+                        style={{
+                            left: '50%',
+                            top: '50%',
+                            width: particle.size,
+                            height: particle.size,
+                            backgroundColor: particle.color,
+                            borderRadius: Math.random() > 0.5 ? '50%' : '2px',
+                            '--tx': `${particle.tx}px`,
+                            '--ty': `${particle.ty}px`,
+                            '--r': `${particle.r}deg`,
+                        } as React.CSSProperties}
+                    />
+                ))}
+            </div>
+
+            {/* Sub-label */}
+            <div className={`text-sm md:text-base font-bold text-gray-500 transition-opacity duration-300 ${
+                isExploding ? 'opacity-0' : 'opacity-100'
+            }`}>
+                {language === 'de' ? 'Wut-Analyse läuft...' : 'Analysing rage levels...'}
+            </div>
         </div>
     );
 };
@@ -1055,7 +1319,7 @@ const ResultSection = ({
 
 const App = () => {
   const [input, setInput] = useState("");
-  const [step, setStep] = useState<'input' | 'loading' | 'result'>('input');
+  const [step, setStep] = useState<'input' | 'loading' | 'rage' | 'result'>('input');
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
@@ -1414,7 +1678,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         console.warn("Audio generation failed, skipping.", audioErr);
       }
 
-      // 3. Show Result & Play Audio
+      // 3. Show Rage Meter, then Result & Play Audio
       // Ensure minimum loading time of 1.5s so animation completes
       const loadingDuration = Date.now() - loadingStartTime;
       const minimumLoadingTime = 1500; // 1.5 seconds
@@ -1422,14 +1686,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
       setTimeout(() => {
         setResult(text);
-        playThwackSound(); // Satisfying thwack on result
-        setStep('result');
-
-        // Auto-play if audio was successfully generated
-        if (autoPlay && audioBufferRef.current) {
-          // Small delay to let the UI settle
-          setTimeout(() => playAudio(), 500);
-        }
+        // Transition to rage meter instead of directly to result
+        setStep('rage');
       }, remainingTime);
 
     } catch (e: any) {
@@ -1531,6 +1789,18 @@ You do not roast the user. You are the user's weapon. The user will paste text f
   const handleRegenerateWithLanguage = async (newLanguage: 'en' | 'de') => {
     // Pass the new language directly to handleSilencer to avoid state timing issues
     await handleSilencer(newLanguage);
+  };
+
+  // Handle rage meter completion
+  const handleRageComplete = () => {
+    playThwackSound(); // Satisfying thwack on result
+    setStep('result');
+
+    // Auto-play if audio was successfully generated
+    if (autoPlay && audioBufferRef.current) {
+      // Small delay to let the UI settle
+      setTimeout(() => playAudio(), 500);
+    }
   };
 
   return (
@@ -1684,6 +1954,12 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                              {language === 'de' ? "Tee trinken, Fehler verurteilen." : "Sipping tea, judging errors."}
                         </p>
                     </div>
+                </div>
+            )}
+
+            {step === 'rage' && (
+                <div className="min-h-[300px] flex flex-col items-center justify-center animate-in fade-in duration-300">
+                    <RageMeter onComplete={handleRageComplete} language={language} />
                 </div>
             )}
 
