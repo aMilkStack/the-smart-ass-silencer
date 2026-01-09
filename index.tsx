@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { annotate } from "rough-notation";
 import logoImg from "./logo.png";
-import { 
+import {
   Coffee,
   Mic,
   Glasses,
@@ -16,7 +16,10 @@ import {
   Settings,
   X,
   HelpCircle,
-  ArrowRight
+  ArrowRight,
+  AlertTriangle,
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 
 // --- Sound Effects ---
@@ -573,7 +576,7 @@ const CopyButton = ({ text, language }: { text: string, language: 'en' | 'de' })
     return (
         <button
             onClick={handleCopy}
-            className={`absolute top-2 right-2 p-3 md:p-2 rounded-full hover:bg-black/5 transition-all duration-200 group z-20 ${copied ? 'animate-pop bg-green-50/50' : 'hover:scale-110 active:scale-90'}`}
+            className={`absolute top-2 right-2 p-3 md:p-2 rounded-full hover:bg-black/5 transition-all duration-200 group z-20 focus-ring ${copied ? 'animate-pop bg-green-50/50' : 'hover:scale-110 active:scale-90'}`}
             title={language === 'de' ? 'In Zwischenablage kopieren' : 'Copy to clipboard'}
         >
             <div className="relative w-5 h-5">
@@ -583,7 +586,7 @@ const CopyButton = ({ text, language }: { text: string, language: 'en' | 'de' })
                 }`}>
                      <Copy size={20} className="text-gray-400 group-hover:text-black transition-colors" />
                 </div>
-                
+
                 {/* Check Icon - pops in when copied */}
                 <div className={`absolute inset-0 transition-all duration-300 ease-out transform ${
                     copied ? 'opacity-100 scale-100 rotate-0 animate-bounce-once' : 'opacity-0 scale-0 -rotate-12'
@@ -594,6 +597,166 @@ const CopyButton = ({ text, language }: { text: string, language: 'en' | 'de' })
         </button>
     );
 };
+
+// --- Loading Spinner Component ---
+const LoadingSpinner = ({
+    size = 24,
+    color = "currentColor",
+    className = ""
+}: {
+    size?: number,
+    color?: string,
+    className?: string
+}) => (
+    <svg
+        className={`loading-spinner ${className}`}
+        width={size}
+        height={size}
+        viewBox="0 0 50 50"
+    >
+        <circle
+            cx="25"
+            cy="25"
+            r="20"
+            fill="none"
+            stroke={color}
+            strokeWidth="4"
+        />
+    </svg>
+);
+
+// --- Skeleton Loader Component ---
+const Skeleton = ({
+    className = "",
+    style = {}
+}: {
+    className?: string,
+    style?: React.CSSProperties
+}) => (
+    <div className={`skeleton ${className}`} style={style} />
+);
+
+// --- Error Display Component ---
+const ErrorDisplay = ({
+    error,
+    onDismiss,
+    onRetry,
+    language
+}: {
+    error: string;
+    onDismiss: () => void;
+    onRetry?: () => void;
+    language: 'en' | 'de';
+}) => {
+    const [isVisible, setIsVisible] = useState(false);
+    const [isExiting, setIsExiting] = useState(false);
+
+    useEffect(() => {
+        // Trigger entrance animation
+        const timer = setTimeout(() => setIsVisible(true), 10);
+        return () => clearTimeout(timer);
+    }, []);
+
+    const handleDismiss = () => {
+        setIsExiting(true);
+        setTimeout(onDismiss, 300);
+    };
+
+    return (
+        <div
+            className={`relative overflow-hidden transition-all duration-300 ease-out ${
+                isVisible && !isExiting
+                    ? 'opacity-100 translate-y-0'
+                    : 'opacity-0 translate-y-2'
+            }`}
+        >
+            <div className="wobbly-box bg-gradient-to-r from-red-50 to-red-100 border-red-300 p-4 md:p-5 error-shake error-pulse">
+                {/* Decorative corner fold */}
+                <div className="absolute top-0 right-0 w-8 h-8 bg-red-200 transform rotate-45 translate-x-4 -translate-y-4" />
+
+                <div className="flex items-start gap-3">
+                    {/* Icon with animation */}
+                    <div className="flex-shrink-0 p-2 bg-red-200 rounded-full">
+                        <AlertTriangle
+                            size={24}
+                            className="text-red-600 animate-pulse"
+                        />
+                    </div>
+
+                    {/* Error content */}
+                    <div className="flex-1 min-w-0">
+                        <h4 className="font-black text-red-800 text-lg mb-1">
+                            {language === 'de' ? 'Oops! Da lief was schief' : 'Oops! Something went wrong'}
+                        </h4>
+                        <p className="text-red-700 font-bold text-base leading-relaxed">
+                            {error}
+                        </p>
+                    </div>
+
+                    {/* Dismiss button */}
+                    <button
+                        onClick={handleDismiss}
+                        className="flex-shrink-0 p-1 hover:bg-red-200 rounded-full transition-colors focus-ring"
+                        title={language === 'de' ? 'Schließen' : 'Dismiss'}
+                    >
+                        <X size={20} className="text-red-500 hover:text-red-700" />
+                    </button>
+                </div>
+
+                {/* Action buttons */}
+                {onRetry && (
+                    <div className="mt-4 flex justify-end gap-2">
+                        <button
+                            onClick={onRetry}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-all hover:scale-105 active:scale-95 focus-ring"
+                        >
+                            <RefreshCw size={16} />
+                            {language === 'de' ? 'Nochmal versuchen' : 'Try Again'}
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- Loading Button Component ---
+const LoadingButton = React.forwardRef<
+    HTMLButtonElement,
+    {
+        onClick: () => void;
+        disabled?: boolean;
+        loading?: boolean;
+        children: React.ReactNode;
+        className?: string;
+        [key: string]: any;
+    }
+>(({ onClick, disabled, loading, children, className = "", ...props }, ref) => {
+    return (
+        <button
+            ref={ref}
+            onClick={onClick}
+            disabled={disabled || loading}
+            className={`relative overflow-hidden ${className} ${loading ? 'btn-loading' : ''}`}
+            {...props}
+        >
+            {/* Content wrapper with fade effect */}
+            <span className={`flex items-center justify-center gap-3 transition-opacity duration-200 ${
+                loading ? 'opacity-0' : 'opacity-100'
+            }`}>
+                {children}
+            </span>
+
+            {/* Loading overlay */}
+            {loading && (
+                <span className="absolute inset-0 flex items-center justify-center gap-3">
+                    <LoadingSpinner size={28} color="currentColor" />
+                    <span className="animate-pulse">...</span>
+                </span>
+            )}
+        </button>
+    );
+});
 
 const LanguageSelectionModal = ({
     isOpen,
@@ -621,13 +784,13 @@ const LanguageSelectionModal = ({
                 <div className="space-y-3">
                     <button
                         onClick={() => handleSelect('en')}
-                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 focus-ring"
                     >
                         English
                     </button>
                     <button
                         onClick={() => handleSelect('de')}
-                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 focus-ring"
                     >
                         Deutsch
                     </button>
@@ -696,7 +859,7 @@ const SettingsModal = ({
             <div className="bg-white wobbly-box p-6 md:p-8 max-w-xs md:max-w-sm w-full relative">
                  <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors focus-ring"
                 >
                     <X size={24} />
                 </button>
@@ -718,20 +881,20 @@ const SettingsModal = ({
                         <div className="flex gap-2">
                             <button
                                 onClick={() => handleLanguageChange('en')}
-                                className={`flex-1 p-3 font-bold border-2 transition-all ${
+                                className={`flex-1 p-3 font-bold border-2 transition-all focus-ring ${
                                     language === 'en'
                                     ? 'bg-black text-white border-black transform -rotate-1 shadow-md'
-                                    : 'bg-white text-gray-400 border-gray-200 hover:border-black'
+                                    : 'bg-white text-gray-400 border-gray-200 hover:border-black hover:bg-gray-50'
                                 }`}
                             >
                                 English
                             </button>
                             <button
                                 onClick={() => handleLanguageChange('de')}
-                                className={`flex-1 p-3 font-bold border-2 transition-all ${
+                                className={`flex-1 p-3 font-bold border-2 transition-all focus-ring ${
                                     language === 'de'
                                     ? 'bg-black text-white border-black transform rotate-1 shadow-md'
-                                    : 'bg-white text-gray-400 border-gray-200 hover:border-black'
+                                    : 'bg-white text-gray-400 border-gray-200 hover:border-black hover:bg-gray-50'
                                 }`}
                             >
                                 Deutsch
@@ -744,11 +907,11 @@ const SettingsModal = ({
                          <label className="font-bold text-gray-600">{t.autoPlayLabel}</label>
                          <button
                             onClick={() => setAutoPlay(!autoPlay)}
-                            className={`w-14 h-8 rounded-full border-2 border-black flex items-center px-1 transition-all ${
+                            className={`w-14 h-8 rounded-full border-2 border-black flex items-center px-1 transition-all focus-ring ${
                                 autoPlay ? 'bg-green-400 justify-end' : 'bg-gray-200 justify-start'
                             }`}
                         >
-                            <div className="w-5 h-5 bg-white border-2 border-black rounded-full shadow-sm"></div>
+                            <div className={`w-5 h-5 bg-white border-2 border-black rounded-full shadow-sm transition-transform ${autoPlay ? 'scale-110' : 'scale-100'}`}></div>
                          </button>
                     </div>
 
@@ -759,7 +922,7 @@ const SettingsModal = ({
                              <button
                                 onClick={onPlayAudio}
                                 disabled={isPlaying}
-                                className="w-full p-4 border-2 border-black bg-yellow-300 font-black text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2 active:shadow-none active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full p-4 border-2 border-black bg-yellow-300 font-black text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2 active:shadow-none active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50 disabled:cursor-not-allowed focus-ring"
                             >
                                 <Volume2 size={24} className={isPlaying ? "animate-pulse" : ""} />
                                 {isPlaying ? t.playing : t.replayAudio}
@@ -784,13 +947,13 @@ const SettingsModal = ({
                         <div className="flex gap-2">
                             <button
                                 onClick={cancelLanguageChange}
-                                className="flex-1 p-3 border-2 border-gray-300 text-gray-600 font-bold hover:bg-gray-100 transition-all"
+                                className="flex-1 p-3 border-2 border-gray-300 text-gray-600 font-bold hover:bg-gray-100 transition-all focus-ring"
                             >
                                 {language === 'de' ? 'Abbrechen' : 'Cancel'}
                             </button>
                             <button
                                 onClick={confirmLanguageChange}
-                                className="flex-1 p-3 bg-black text-white font-bold border-2 border-black hover:bg-gray-800 transition-all"
+                                className="flex-1 p-3 bg-black text-white font-bold border-2 border-black hover:bg-gray-800 transition-all focus-ring"
                             >
                                 {language === 'de' ? 'Neu generieren' : 'Regenerate'}
                             </button>
@@ -955,9 +1118,9 @@ const OnboardingGuide = ({
                         {/* Tape */}
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-6 bg-white/40 rotate-1"></div>
 
-                        <button 
-                            onClick={onClose} 
-                            className="absolute -top-2 -right-2 bg-white rounded-full p-1 border border-gray-200 hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                        <button
+                            onClick={onClose}
+                            className="absolute -top-2 -right-2 bg-white rounded-full p-1 border border-gray-200 hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors focus-ring"
                         >
                             <X size={16} />
                         </button>
@@ -972,12 +1135,12 @@ const OnboardingGuide = ({
                         </p>
 
                         <div className="flex justify-end">
-                            <button 
+                            <button
                                 onClick={onNext}
-                                className="bg-black text-white px-3 py-1.5 md:px-4 md:py-2 font-bold transform rotate-1 hover:-rotate-1 transition-transform flex items-center gap-2 text-xs md:text-sm border-2 border-transparent hover:border-black hover:bg-white hover:text-black"
+                                className="bg-black text-white px-3 py-1.5 md:px-4 md:py-2 font-bold transform rotate-1 hover:-rotate-1 transition-all flex items-center gap-2 text-xs md:text-sm border-2 border-transparent hover:border-black hover:bg-white hover:text-black focus-ring active:scale-95"
                             >
-                                {step === steps.length - 1 
-                                    ? (language === 'de' ? "Verstanden" : "Got it") 
+                                {step === steps.length - 1
+                                    ? (language === 'de' ? "Verstanden" : "Got it")
                                     : (language === 'de' ? "Weiter" : "Next")
                                 } <ArrowRight size={14} />
                             </button>
@@ -1060,7 +1223,8 @@ const App = () => {
   const [error, setError] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
-const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
+  const [btnLoading, setBtnLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
 
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
@@ -1279,6 +1443,9 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
         return;
     }
 
+    // Show button loading state briefly before transitioning
+    setBtnLoading(true);
+
     // Stop recording if active
     if (isRecording) {
         recognitionRef.current?.stop();
@@ -1291,6 +1458,10 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
     // Init audio context immediately on click
     initAudioContext();
 
+    // Brief delay to show button loading state
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    setBtnLoading(false);
     setStep('loading');
     setError("");
     setResult("");
@@ -1434,6 +1605,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : String(e);
+      setBtnLoading(false);
       if (msg.includes('API_KEY') || msg.includes('401')) {
         setError(activeLanguage === 'de'
             ? "API-Schlüssel kaputt. Prüfe deine .env"
@@ -1569,7 +1741,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                  {/* Help Button */}
                 <button
                     onClick={() => setTourStep(0)}
-                    className="text-gray-400 hover:text-black hover:scale-110 transition-all duration-300"
+                    className="text-gray-400 hover:text-black hover:scale-110 transition-all duration-300 rounded-full p-1 focus-ring"
                     title={language === 'de' ? 'Hilfe & Tour' : 'Help & Tour'}
                 >
                     <HelpCircle size={24} />
@@ -1579,7 +1751,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                 <button
                     ref={settingsBtnRef}
                     onClick={() => setShowSettings(true)}
-                    className="text-gray-400 hover:text-black hover:rotate-90 transition-all duration-300"
+                    className="text-gray-400 hover:text-black hover:rotate-90 transition-all duration-300 rounded-full p-1 focus-ring"
                     title={language === 'de' ? 'Einstellungen' : 'Settings'}
                 >
                     <Settings size={24} />
@@ -1640,10 +1812,10 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
                             <button
                                 onClick={toggleRecording}
-                                className={`absolute bottom-3 right-3 p-2 rounded-full transition-all duration-300 z-20 ${
+                                className={`absolute bottom-3 right-3 p-2 rounded-full transition-all duration-300 z-20 focus-ring ${
                                     isRecording
-                                    ? "text-red-500 animate-pulse"
-                                    : "text-gray-400/50 hover:text-gray-600 hover:opacity-100"
+                                    ? "text-red-500 animate-pulse bg-red-50"
+                                    : "text-gray-400/50 hover:text-gray-600 hover:opacity-100 hover:bg-gray-100"
                                 }`}
                                 title={language === 'de' ? 'Spracheingabe umschalten' : 'Toggle voice input'}
                             >
@@ -1652,23 +1824,27 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                         </div>
                     </div>
 
-                    <RoughHighlight show={btnHovered} type="circle" color="#000" padding={10} iterations={1} strokeWidth={2}>
-                        <button 
-                        ref={actionBtnRef}
-                        onClick={() => { playClickSound(); handleSilencer(); }}
-                        onMouseEnter={() => setBtnHovered(true)}
-                        onMouseLeave={() => setBtnHovered(false)}
-                        disabled={!input.trim()}
-                        className="w-full wobbly-box bg-red-400 px-8 py-4 text-2xl md:text-3xl font-black flex items-center justify-center gap-3 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 hover:scale-[1.02] active:scale-95 active:translate-y-1 transition-all duration-150 mt-2"
+                    <RoughHighlight show={btnHovered && !btnLoading} type="circle" color="#000" padding={10} iterations={1} strokeWidth={2}>
+                        <LoadingButton
+                            ref={actionBtnRef}
+                            onClick={() => { playClickSound(); handleSilencer(); }}
+                            onMouseEnter={() => setBtnHovered(true)}
+                            onMouseLeave={() => setBtnHovered(false)}
+                            disabled={!input.trim()}
+                            loading={btnLoading}
+                            className="w-full wobbly-box bg-red-400 px-8 py-4 text-2xl md:text-3xl font-black hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 hover:scale-[1.02] active:scale-95 active:translate-y-1 transition-all duration-150 mt-2 focus-ring"
                         >
-                        {language === 'de' ? "Bullshit Analysieren" : "Analyse Bullshit"}
-                        </button>
+                            {language === 'de' ? "Bullshit Analysieren" : "Analyse Bullshit"}
+                        </LoadingButton>
                     </RoughHighlight>
 
                     {error && (
-                        <div className="wobbly-box bg-red-100 p-4 flex items-center gap-3 text-red-600 text-xl font-bold rotate-1 animate-bounce">
-                            <Coffee size={24} /> {error}
-                        </div>
+                        <ErrorDisplay
+                            error={error}
+                            onDismiss={() => setError("")}
+                            onRetry={() => handleSilencer()}
+                            language={language}
+                        />
                     )}
                 </div>
             )}
@@ -1702,18 +1878,18 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                                     onClick={playAudio}
                                     disabled={isPlaying}
                                     title={isPlaying ? (language === 'de' ? 'Spricht...' : 'Speaking...') : (language === 'de' ? 'Anhören' : 'Listen')}
-                                    className={`p-2 rounded-full border-2 transition-all ${
+                                    className={`p-2 rounded-full border-2 transition-all focus-ring ${
                                         isPlaying
-                                            ? 'border-green-500 text-green-700 bg-green-50'
-                                            : 'border-black text-black hover:bg-yellow-100'
+                                            ? 'border-green-500 text-green-700 bg-green-50 animate-pulse'
+                                            : 'border-black text-black hover:bg-yellow-100 hover:scale-110 active:scale-95'
                                     }`}
                                 >
-                                    <Volume2 size={24} className={isPlaying ? "animate-pulse" : ""} />
+                                    <Volume2 size={24} className={isPlaying ? "animate-bounce" : ""} />
                                 </button>
                              )}
 
-                            <button onClick={reset} className="text-gray-400 hover:text-black font-bold underline decoration-wavy flex items-center gap-1 group">
-                                <PenTool size={16} className="group-hover:rotate-12 transition-transform"/> 
+                            <button onClick={reset} className="text-gray-400 hover:text-black font-bold underline decoration-wavy flex items-center gap-1 group px-2 py-1 rounded focus-ring transition-all hover:bg-gray-100">
+                                <PenTool size={16} className="group-hover:rotate-12 transition-transform"/>
                                 {language === 'de' ? "Neues Opfer" : "New Target"}
                             </button>
                         </div>
