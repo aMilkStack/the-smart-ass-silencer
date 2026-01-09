@@ -1359,7 +1359,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
       />
 
       {/* Main Container */}
-      <div className="w-full max-w-2xl relative z-10 my-2 md:my-6">
+      <div className="w-full max-w-2xl relative z-10 my-2 md:my-6 px-2">
         
         {/* The Card */}
         <div className="bg-white wobbly-box p-4 md:p-8 relative overflow-hidden">
@@ -1413,7 +1413,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
             {step === 'input' && (
                 <div className="flex flex-col gap-4">
-                    <div className="relative overflow-hidden">
+                    <div className="relative">
                         <div className="mb-2 mt-2 h-12 w-full">
                            <ScribbleHeader
                                 text={isRecording
@@ -1425,8 +1425,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                             />
                         </div>
 
-                        <div className="relative overflow-hidden rounded-lg">
-                            <RoughHighlight show={inputFocused} type="bracket" color="#ef4444" padding={6} strokeWidth={3} iterations={2} animationDuration={400}>
+                        <div className="relative">
+                            <RoughHighlight show={inputFocused} type="bracket" color="#ef4444" padding={4} strokeWidth={2} iterations={2} animationDuration={400}>
                                 <textarea 
                                     ref={inputRef}
                                     value={input}
