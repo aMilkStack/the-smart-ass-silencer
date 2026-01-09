@@ -1534,7 +1534,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
       <div className="w-full max-w-2xl relative z-10 my-2 md:my-6 px-2">
         
         {/* The Card */}
-        <div className="bg-white wobbly-box p-4 md:p-8 relative overflow-hidden">
+        <div className="bg-white wobbly-box p-4 md:p-8 relative">
 
             {/* Header Controls */}
             <div className="absolute top-4 right-4 flex gap-2 z-30">
@@ -1559,7 +1559,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             </div>
 
             {/* Tape Effect */}
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-32 h-8 bg-pink-200 opacity-80 -rotate-1 shadow-sm z-20" style={{clipPath: 'polygon(2% 0, 100% 0, 98% 100%, 0% 100%)'}}></div>
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-10 bg-pink-200 opacity-80 -rotate-1 shadow-sm z-20" style={{clipPath: 'polygon(2% 0, 100% 0, 98% 100%, 0% 100%)'}}></div>
 
             {/* Title Section */}
             <div className="mb-6 mt-2 text-center relative flex flex-col items-center">
@@ -1586,7 +1586,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             {step === 'input' && (
                 <div className="flex flex-col gap-4">
                     <div className="relative">
-                        <div className="mb-2 mt-2 h-12 w-full">
+                        <div className="mb-2 mt-2 h-16 w-full overflow-visible">
                            <ScribbleHeader
                                 text={isRecording
                                     ? (language === 'de' ? "Höre zu..." : "Listening...")
