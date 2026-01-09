@@ -77,21 +77,30 @@
         /* The signature organic shape */
         border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
         box-shadow: 4px 4px 0px 0px #2a2a2a;
-        transition: border-radius 0.4s ease-in-out, transform 0.3s ease-out, box-shadow 0.3s ease;
         background: white;
+        /* Consistent transform origin ensures children move with parent */
+        transform-origin: center center;
+        /* Unified transition timing for all properties */
+        transition: border-radius 0.3s ease-out, transform 0.3s ease-out, box-shadow 0.3s ease-out;
+        /* Performance optimizations for smooth child transforms */
+        will-change: transform, border-radius;
+        backface-visibility: hidden;
+        /* Ensure transform applies to entire element including children */
+        transform: translateZ(0);
       }
 
       .wobbly-box:hover {
         /* Subtle shift instead of extreme inversion to keep content attached */
         border-radius: 245px 20px 215px 25px / 25px 215px 20px 245px;
-        transform: rotate(-0.5deg) scale(1.005);
+        transform: rotate(-0.5deg) scale(1.005) translateZ(0);
         box-shadow: 6px 6px 0px 0px #2a2a2a;
       }
 
       .wobbly-box:active {
         box-shadow: 2px 2px 0px 0px #2a2a2a;
-        transform: translate(2px, 2px) rotate(0deg);
-        transition: all 0.1s;
+        transform: translate(2px, 2px) rotate(0deg) translateZ(0);
+        /* Use same easing but faster duration for snappy active feedback */
+        transition: border-radius 0.1s ease-out, transform 0.1s ease-out, box-shadow 0.1s ease-out;
       }
       
       .wobbly-input {
