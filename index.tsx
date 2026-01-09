@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { annotate } from "rough-notation";
 import logoImg from "./logo.png";
-import { 
+import {
   Coffee,
   Mic,
   Glasses,
@@ -16,7 +16,8 @@ import {
   Settings,
   X,
   HelpCircle,
-  ArrowRight
+  ArrowRight,
+  RotateCw
 } from "lucide-react";
 
 // --- Sound Effects (Subtle & Pleasant) ---
@@ -95,9 +96,187 @@ const playPopSound = () => {
     gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
     gainNode.gain.linearRampToValueAtTime(0.06, audioCtx.currentTime + 0.01);
     gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.05);
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
 
     oscillator.start(audioCtx.currentTime);
     oscillator.stop(audioCtx.currentTime + 0.1);
+  } catch (e) {}
+};
+
+// --- Haptic Feedback ---
+const triggerHaptic = (style: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') => {
+  if (!navigator.vibrate) return;
+
+  const patterns: Record<string, number | number[]> = {
+    light: 10,
+    medium: 20,
+    heavy: 30,
+    success: [10, 50, 20],
+    warning: [20, 30, 20],
+    error: [30, 50, 30, 50, 30],
+  };
+
+  try {
+    navigator.vibrate(patterns[style] || 10);
+  } catch (e) {
+    // Silently fail if vibration is not available
+  }
+};
+
+// --- Swipe Gesture Hook ---
+const useSwipeGesture = (
+  onSwipeRight?: () => void,
+  onSwipeLeft?: () => void,
+  threshold: number = 80
+) => {
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: Date.now()
+      };
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!touchStartRef.current) return;
+
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = touch.clientY - touchStartRef.current.y;
+      const deltaTime = Date.now() - touchStartRef.current.time;
+
+      // Only trigger if horizontal movement is dominant and fast enough
+      if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && deltaTime < 300) {
+        if (deltaX > threshold && onSwipeRight) {
+          triggerHaptic('light');
+          onSwipeRight();
+        } else if (deltaX < -threshold && onSwipeLeft) {
+          triggerHaptic('light');
+          onSwipeLeft();
+        }
+      }
+
+      touchStartRef.current = null;
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [onSwipeRight, onSwipeLeft, threshold]);
+
+  return containerRef;
+};
+
+// --- Keyboard Avoidance Hook ---
+const useKeyboardAvoidance = () => {
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    // Use visualViewport API for accurate keyboard detection
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const handleResize = () => {
+      const keyboardH = window.innerHeight - viewport.height;
+      setKeyboardHeight(keyboardH > 50 ? keyboardH : 0);
+      setIsKeyboardVisible(keyboardH > 50);
+    };
+
+    viewport.addEventListener('resize', handleResize);
+    viewport.addEventListener('scroll', handleResize);
+
+    return () => {
+      viewport.removeEventListener('resize', handleResize);
+      viewport.removeEventListener('scroll', handleResize);
+    };
+  }, []);
+
+  return { keyboardHeight, isKeyboardVisible };
+const playExplosionSound = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+    // Create noise for explosion
+    const bufferSize = audioCtx.sampleRate * 0.3;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    // Low pass filter for rumble
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+
+    noise.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    noise.start(audioCtx.currentTime);
+    noise.stop(audioCtx.currentTime + 0.3);
+
+    // Add a bass thump
+    const osc = audioCtx.createOscillator();
+    const oscGain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.2);
+    oscGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+    osc.connect(oscGain);
+    oscGain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.2);
+  } catch (e) {}
+};
+
+const playRageTickSound = (intensity: number) => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    // Higher pitch as intensity increases
+    const baseFreq = 200 + (intensity * 400);
+    oscillator.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+    oscillator.type = 'square';
+
+    gainNode.gain.setValueAtTime(0.05 + (intensity * 0.05), audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+    oscillator.start(audioCtx.currentTime);
+    oscillator.stop(audioCtx.currentTime + 0.05);
   } catch (e) {}
 };
 
@@ -455,19 +634,207 @@ const PongLoader = () => {
   return (
     <div ref={containerRef} className="w-full h-48 md:h-60 wobbly-box bg-white relative overflow-hidden cursor-none touch-none select-none">
         <canvas ref={canvasRef} className="block w-full h-full" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-gray-200 font-black text-4xl md:text-5xl pointer-events-none -z-10 select-none opacity-40 rotate-12 text-center">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-gray-200 heading-xl text-4xl md:text-5xl pointer-events-none -z-10 select-none opacity-40 rotate-12 text-center tracking-tight">
             MOVE TO<br />PLAY PONG
         </div>
-        <div className="absolute bottom-2 left-2 text-xs text-gray-400 font-bold opacity-50 pointer-events-none">
+        <div className="absolute bottom-2 left-2 text-xs text-gray-400 label opacity-50 pointer-events-none tracking-wider">
             YOU
         </div>
-        <div className="absolute top-2 right-2 text-xs text-gray-400 font-bold opacity-50 pointer-events-none">
+        <div className="absolute top-2 right-2 text-xs text-gray-400 label opacity-50 pointer-events-none tracking-wider">
             CPU
         </div>
     </div>
   );
 };
 
+
+// Loading Skeleton Component
+const Skeleton = ({ className = "", lines = 3 }: { className?: string; lines?: number }) => {
+  return (
+    <div className={`space-y-3 ${className}`}>
+      {Array.from({ length: lines }).map((_, i) => (
+        <div
+          key={i}
+          className="skeleton h-4"
+          style={{
+            width: i === lines - 1 ? '60%' : i % 2 === 0 ? '100%' : '85%',
+            animationDelay: `${i * 0.1}s`
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+// Result Skeleton - Shows expected result structure while loading
+const ResultSkeleton = () => {
+  return (
+    <div className="animate-fade-slide-in space-y-8 py-4">
+      {/* Kill Shot Skeleton */}
+      <div className="wobbly-box bg-white border-4 border-gray-200 p-6 md:p-8 relative">
+        <div className="space-y-3">
+          <div className="skeleton h-8 w-3/4 mx-auto" />
+          <div className="skeleton h-8 w-1/2 mx-auto" />
+        </div>
+      </div>
+
+      {/* Autopsy Skeleton */}
+      <div className="mt-8">
+        <div className="skeleton h-6 w-32 mb-4" />
+        <div className="bg-gray-50 border border-gray-200 border-dashed rounded-lg p-5 md:p-6">
+          <Skeleton lines={3} />
+        </div>
+      </div>
+
+      {/* Follow-up Skeleton */}
+      <div className="mt-8">
+        <div className="skeleton h-6 w-40 mb-4" />
+        <div className="bg-gray-50 border border-gray-200 border-dashed rounded-lg p-5 md:p-6">
+          <Skeleton lines={2} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Pull to Refresh Hook
+const usePullToRefresh = (onRefresh: () => void, enabled: boolean = true) => {
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const startYRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const threshold = 80;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0) {
+        startYRef.current = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (startYRef.current === null || isRefreshing) return;
+
+      const currentY = e.touches[0].clientY;
+      const distance = currentY - startYRef.current;
+
+      if (distance > 0 && window.scrollY === 0) {
+        e.preventDefault();
+        // Apply resistance to pull
+        const resistedDistance = Math.min(distance * 0.5, 150);
+        setPullDistance(resistedDistance);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (pullDistance > threshold && !isRefreshing) {
+        setIsRefreshing(true);
+        onRefresh();
+        setTimeout(() => {
+          setIsRefreshing(false);
+          setPullDistance(0);
+        }, 1000);
+      } else {
+        setPullDistance(0);
+      }
+      startYRef.current = null;
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [enabled, onRefresh, pullDistance, isRefreshing]);
+
+  return { pullDistance, isRefreshing, containerRef };
+};
+
+// Pull to Refresh Indicator Component
+const PullToRefreshIndicator = ({
+  pullDistance,
+  isRefreshing,
+  threshold = 80
+}: {
+  pullDistance: number;
+  isRefreshing: boolean;
+  threshold?: number;
+}) => {
+  const progress = Math.min(pullDistance / threshold, 1);
+  const rotation = progress * 180;
+
+  if (pullDistance === 0 && !isRefreshing) return null;
+
+  return (
+    <div
+      className="absolute left-1/2 -translate-x-1/2 z-50 pull-indicator"
+      style={{
+        top: Math.min(pullDistance * 0.5, 60) - 40,
+        opacity: isRefreshing ? 1 : progress
+      }}
+    >
+      <div className={`bg-white wobbly-box p-3 shadow-lg ${isRefreshing ? 'animate-bounce' : ''}`}>
+        <RotateCw
+          size={24}
+          className={isRefreshing ? 'animate-spin' : ''}
+          style={{
+            transform: isRefreshing ? undefined : `rotate(${rotation}deg)`,
+            transition: 'transform 0.1s ease-out'
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// Animated Button Component with enhanced press state
+const AnimatedButton = ({
+  children,
+  onClick,
+  disabled,
+  className = "",
+  variant = "primary"
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  className?: string;
+  variant?: "primary" | "secondary";
+}) => {
+  const [isPressed, setIsPressed] = useState(false);
+
+  const baseClasses = "btn-press transition-all duration-150 transform";
+  const variantClasses = variant === "primary"
+    ? "wobbly-box bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+    : "wobbly-box bg-white border-4 border-black hover:bg-yellow-100";
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseDown={() => setIsPressed(true)}
+      onMouseUp={() => setIsPressed(false)}
+      onMouseLeave={() => setIsPressed(false)}
+      onTouchStart={() => setIsPressed(true)}
+      onTouchEnd={() => setIsPressed(false)}
+      className={`${baseClasses} ${variantClasses} ${className} ${
+        isPressed && !disabled ? 'scale-[0.96] translate-y-0.5' : 'hover:-translate-y-0.5 hover:scale-[1.02]'
+      }`}
+    >
+      {children}
+    </button>
+  );
+};
 
 // Reusable Scribble Text (SVG Animation)
 const ScribbleHeader = ({ 
@@ -568,6 +935,200 @@ const RoughHighlight = ({
     );
 };
 
+// Rage Meter Component - Builds up and explodes!
+const RageMeter = ({
+    onComplete,
+    language
+}: {
+    onComplete: () => void;
+    language: 'en' | 'de';
+}) => {
+    const [progress, setProgress] = useState(0);
+    const [isShaking, setIsShaking] = useState(false);
+    const [isExploding, setIsExploding] = useState(false);
+    const [particles, setParticles] = useState<Array<{id: number; x: number; y: number; tx: number; ty: number; r: number; color: string; size: number}>>([]);
+    const [showFlash, setShowFlash] = useState(false);
+    const meterRef = useRef<HTMLDivElement>(null);
+    const lastTickRef = useRef(0);
+
+    const rageLabelsEn = [
+        { threshold: 0, label: "Mildly annoyed" },
+        { threshold: 20, label: "Eye twitching" },
+        { threshold: 40, label: "Blood pressure rising" },
+        { threshold: 60, label: "Seeing red" },
+        { threshold: 80, label: "MAXIMUM RAGE" },
+        { threshold: 95, label: "CRITICAL!!!" },
+    ];
+
+    const rageLabelsDe = [
+        { threshold: 0, label: "Leicht genervt" },
+        { threshold: 20, label: "Augenzucken" },
+        { threshold: 40, label: "Blutdruck steigt" },
+        { threshold: 60, label: "Sehe rot" },
+        { threshold: 80, label: "MAXIMALE WUT" },
+        { threshold: 95, label: "KRITISCH!!!" },
+    ];
+
+    const rageLabels = language === 'de' ? rageLabelsDe : rageLabelsEn;
+
+    const getCurrentLabel = () => {
+        for (let i = rageLabels.length - 1; i >= 0; i--) {
+            if (progress >= rageLabels[i].threshold) {
+                return rageLabels[i].label;
+            }
+        }
+        return rageLabels[0].label;
+    };
+
+    useEffect(() => {
+        // Animate progress
+        const duration = 2000; // 2 seconds to fill
+        const startTime = Date.now();
+
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const newProgress = Math.min(100, (elapsed / duration) * 100);
+
+            // Play tick sounds at intervals
+            const tickInterval = 10;
+            if (Math.floor(newProgress / tickInterval) > lastTickRef.current) {
+                lastTickRef.current = Math.floor(newProgress / tickInterval);
+                playRageTickSound(newProgress / 100);
+            }
+
+            setProgress(newProgress);
+
+            // Start shaking at 50%
+            if (newProgress >= 50 && !isShaking) {
+                setIsShaking(true);
+            }
+
+            if (newProgress < 100) {
+                requestAnimationFrame(animate);
+            } else {
+                // Explosion time!
+                triggerExplosion();
+            }
+        };
+
+        requestAnimationFrame(animate);
+    }, []);
+
+    const triggerExplosion = () => {
+        setIsExploding(true);
+        setShowFlash(true);
+        playExplosionSound();
+
+        // Generate particles
+        const newParticles: typeof particles = [];
+        const colors = ['#ef4444', '#f97316', '#eab308', '#dc2626', '#fbbf24'];
+
+        for (let i = 0; i < 30; i++) {
+            const angle = (Math.PI * 2 * i) / 30 + (Math.random() - 0.5) * 0.5;
+            const distance = 100 + Math.random() * 150;
+            newParticles.push({
+                id: i,
+                x: 0,
+                y: 0,
+                tx: Math.cos(angle) * distance,
+                ty: Math.sin(angle) * distance,
+                r: Math.random() * 720 - 360,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                size: 8 + Math.random() * 16
+            });
+        }
+        setParticles(newParticles);
+
+        // Hide flash quickly
+        setTimeout(() => setShowFlash(false), 150);
+
+        // Complete after explosion animation
+        setTimeout(() => {
+            onComplete();
+        }, 600);
+    };
+
+    const shakeIntensity = isShaking ? Math.min((progress - 50) / 50, 1) : 0;
+
+    return (
+        <div className="flex flex-col items-center gap-4 py-6 relative">
+            {/* Flash overlay */}
+            {showFlash && (
+                <div className="fixed inset-0 bg-red-500 animate-flash z-50 pointer-events-none" />
+            )}
+
+            {/* Rage Label */}
+            <div className={`text-2xl md:text-3xl font-black text-center transition-all duration-200 ${
+                progress >= 80 ? 'text-red-600 scale-110' : progress >= 60 ? 'text-orange-500' : 'text-gray-800'
+            }`}>
+                {getCurrentLabel()}
+            </div>
+
+            {/* Meter Container */}
+            <div
+                ref={meterRef}
+                className={`relative w-full max-w-md h-12 md:h-16 wobbly-box bg-gray-100 overflow-hidden ${
+                    isShaking ? 'animate-rage-shake' : ''
+                } ${progress >= 80 ? 'rage-glow' : ''}`}
+                style={{
+                    transform: isShaking ? `translateX(${(Math.random() - 0.5) * shakeIntensity * 6}px)` : undefined,
+                    transition: isExploding ? 'transform 0.3s ease-out' : undefined
+                }}
+            >
+                {/* Fill Bar */}
+                <div
+                    className={`absolute inset-y-0 left-0 transition-all duration-100 ${
+                        isExploding ? 'animate-rage-explode' : ''
+                    }`}
+                    style={{
+                        width: `${progress}%`,
+                        background: progress < 50
+                            ? 'linear-gradient(90deg, #fbbf24, #f97316)'
+                            : progress < 80
+                            ? 'linear-gradient(90deg, #f97316, #ef4444)'
+                            : 'linear-gradient(90deg, #ef4444, #dc2626)',
+                    }}
+                />
+
+                {/* Percentage */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-xl md:text-2xl font-black ${
+                        progress > 50 ? 'text-white' : 'text-gray-800'
+                    } drop-shadow-md`}>
+                        {Math.round(progress)}%
+                    </span>
+                </div>
+
+                {/* Particles */}
+                {particles.map(particle => (
+                    <div
+                        key={particle.id}
+                        className="rage-particle absolute"
+                        style={{
+                            left: '50%',
+                            top: '50%',
+                            width: particle.size,
+                            height: particle.size,
+                            backgroundColor: particle.color,
+                            borderRadius: Math.random() > 0.5 ? '50%' : '2px',
+                            '--tx': `${particle.tx}px`,
+                            '--ty': `${particle.ty}px`,
+                            '--r': `${particle.r}deg`,
+                        } as React.CSSProperties}
+                    />
+                ))}
+            </div>
+
+            {/* Sub-label */}
+            <div className={`text-sm md:text-base font-bold text-gray-500 transition-opacity duration-300 ${
+                isExploding ? 'opacity-0' : 'opacity-100'
+            }`}>
+                {language === 'de' ? 'Wut-Analyse läuft...' : 'Analysing rage levels...'}
+            </div>
+        </div>
+    );
+};
+
 const CopyButton = ({ text, language }: { text: string, language: 'en' | 'de' }) => {
     const [copied, setCopied] = useState(false);
 
@@ -576,17 +1137,19 @@ const CopyButton = ({ text, language }: { text: string, language: 'en' | 'de' })
         try {
             await navigator.clipboard.writeText(text);
             playPopSound();
+            triggerHaptic('success');
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             console.error('Failed to copy', err);
+            triggerHaptic('error');
         }
     };
 
     return (
         <button
             onClick={handleCopy}
-            className={`absolute top-2 right-2 p-3 md:p-2 rounded-full hover:bg-black/5 transition-all duration-200 group z-20 ${copied ? 'animate-pop bg-green-50/50' : 'hover:scale-110 active:scale-90'}`}
+            className={`absolute top-2 right-2 p-3 md:p-2 rounded-full hover:bg-black/5 transition-all duration-200 group z-20 touch-feedback ${copied ? 'animate-pop bg-green-50/50' : 'hover:scale-110 active:scale-90'}`}
             title={language === 'de' ? 'In Zwischenablage kopieren' : 'Copy to clipboard'}
         >
             <div className="relative w-5 h-5">
@@ -618,6 +1181,7 @@ const LanguageSelectionModal = ({
     if (!isOpen) return null;
 
     const handleSelect = (lang: 'en' | 'de') => {
+        triggerHaptic('light');
         localStorage.setItem('language_selected', 'true');
         localStorage.setItem('user_language', lang);
         onSelectLanguage(lang);
@@ -627,20 +1191,23 @@ const LanguageSelectionModal = ({
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-white wobbly-box p-8 md:p-10 max-w-md w-full relative text-center space-y-6">
                 <div className="space-y-2">
-                    <h2 className="text-2xl md:text-3xl font-black">Choose Your Language</h2>
-                    <p className="text-lg md:text-xl font-black">Wähle deine Sprache</p>
+                    <h2 className="text-2xl md:text-3xl heading-lg tracking-tight">Choose Your Language</h2>
+                    <p className="text-lg md:text-xl heading-md">Wähle deine Sprache</p>
                 </div>
 
                 <div className="space-y-3">
                     <button
                         onClick={() => handleSelect('en')}
-                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 touch-feedback"
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:scale-[0.97] active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 btn-press animate-bounce-in"
                     >
                         English
                     </button>
                     <button
                         onClick={() => handleSelect('de')}
-                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 touch-feedback"
+8                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:scale-[0.97] active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 btn-press animate-bounce-in-delayed"
+                        style={{ animationDelay: '0.1s' }}
                     >
                         Deutsch
                     </button>
@@ -648,6 +1215,24 @@ const LanguageSelectionModal = ({
             </div>
         </div>
     );
+};
+
+// Sarcasm level labels
+const SARCASM_LEVELS = {
+    en: [
+        { level: 1, label: "Mildly Annoyed", desc: "Polite disappointment" },
+        { level: 2, label: "Eye Roll", desc: "Passive-aggressive sighing" },
+        { level: 3, label: "Properly British", desc: "Dry wit & backhanded compliments" },
+        { level: 4, label: "Savage", desc: "No mercy, no survivors" },
+        { level: 5, label: "Nuclear", desc: "Verbal war crimes" }
+    ],
+    de: [
+        { level: 1, label: "Leicht Genervt", desc: "Höfliche Enttäuschung" },
+        { level: 2, label: "Augenrollen", desc: "Passiv-aggressives Seufzen" },
+        { level: 3, label: "Typisch Deutsch", desc: "Bürokratische Verachtung" },
+        { level: 4, label: "Brutal", desc: "Keine Gnade, keine Überlebenden" },
+        { level: 5, label: "Atomar", desc: "Verbale Kriegsverbrechen" }
+    ]
 };
 
 const SettingsModal = ({
@@ -659,6 +1244,8 @@ const SettingsModal = ({
     hasAudio,
     autoPlay,
     setAutoPlay,
+    sarcasmLevel,
+    setSarcasmLevel,
     isPlaying,
     step,
     onRegenerateWithLanguage
@@ -670,6 +1257,7 @@ const SettingsModal = ({
 
     const handleLanguageChange = (newLang: 'en' | 'de') => {
         if (newLang === language) return;
+        triggerHaptic('light');
 
         // If viewing results, show confirmation
         if (step === 'result') {
@@ -714,14 +1302,14 @@ const SettingsModal = ({
                     <X size={24} />
                 </button>
 
-                <h2 className="text-2xl font-black mb-6 flex items-center gap-2">
+                <h2 className="text-2xl heading-lg tracking-tight mb-6 flex items-center gap-2">
                     <Settings className="animate-spin-slow" /> {t.title}
                 </h2>
 
                 <div className="space-y-6">
                     {/* Language Switch */}
                     <div className="space-y-2">
-                        <label className="font-bold text-gray-600 block">{t.languageLabel}</label>
+                        <label className="label text-sm text-gray-600 block">{t.languageLabel}</label>
                         {step === 'result' && (
                             <div className="text-xs text-amber-600 mb-2 flex items-start gap-1">
                                 <span>⚠️</span>
@@ -754,7 +1342,7 @@ const SettingsModal = ({
 
                     {/* Auto Play Toggle */}
                     <div className="flex items-center justify-between">
-                         <label className="font-bold text-gray-600">{t.autoPlayLabel}</label>
+                         <label className="label text-sm text-gray-600">{t.autoPlayLabel}</label>
                          <button
                             onClick={() => setAutoPlay(!autoPlay)}
                             className={`w-14 h-8 rounded-full border-2 border-black flex items-center px-1 transition-all ${
@@ -765,10 +1353,63 @@ const SettingsModal = ({
                          </button>
                     </div>
 
+                    {/* Sarcasm Level Slider */}
+                    <div className="space-y-3 pt-4 border-t-2 border-dashed border-gray-200">
+                        <label className="font-bold text-gray-600 block">
+                            {language === 'de' ? 'Brutalitätsstufe' : 'Brutality Level'}
+                        </label>
+                        <div className="relative">
+                            {/* Custom slider track */}
+                            <div className="relative h-3 bg-gradient-to-r from-yellow-200 via-orange-400 to-red-600 border-2 border-black rounded-full">
+                                {/* Slider markers */}
+                                <div className="absolute inset-0 flex justify-between px-1 items-center">
+                                    {[1, 2, 3, 4, 5].map((n) => (
+                                        <div
+                                            key={n}
+                                            className={`w-1.5 h-1.5 rounded-full transition-all ${
+                                                n <= sarcasmLevel ? 'bg-black' : 'bg-white/50'
+                                            }`}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                            {/* Invisible range input for interaction */}
+                            <input
+                                type="range"
+                                min="1"
+                                max="5"
+                                value={sarcasmLevel}
+                                onChange={(e) => {
+                                    playClickSound();
+                                    setSarcasmLevel(parseInt(e.target.value, 10));
+                                }}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            {/* Custom thumb indicator */}
+                            <div
+                                className="absolute top-1/2 -translate-y-1/2 pointer-events-none transition-all duration-150"
+                                style={{ left: `calc(${((sarcasmLevel - 1) / 4) * 100}% - ${sarcasmLevel === 1 ? '0px' : sarcasmLevel === 5 ? '24px' : '12px'})` }}
+                            >
+                                <div className="w-6 h-6 bg-white border-2 border-black rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center text-xs font-black">
+                                    {sarcasmLevel}
+                                </div>
+                            </div>
+                        </div>
+                        {/* Level display */}
+                        <div className="text-center">
+                            <div className="text-lg font-black">
+                                {sarcasmLevel}/5 — {SARCASM_LEVELS[language][sarcasmLevel - 1].label}
+                            </div>
+                            <div className="text-xs text-gray-500 italic">
+                                {SARCASM_LEVELS[language][sarcasmLevel - 1].desc}
+                            </div>
+                        </div>
+                    </div>
+
                      {/* Audio Playback */}
                      {hasAudio && (
                         <div className="pt-4 border-t-2 border-dashed border-gray-200">
-                             <label className="font-bold text-gray-600 block mb-2">{t.lastTransmission}</label>
+                             <label className="label text-sm text-gray-600 block mb-2">{t.lastTransmission}</label>
                              <button
                                 onClick={onPlayAudio}
                                 disabled={isPlaying}
@@ -786,10 +1427,10 @@ const SettingsModal = ({
             {showLanguageConfirm && (
                 <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 z-10">
                     <div className="bg-white wobbly-box p-6 max-w-xs w-full">
-                        <h3 className="text-xl font-black mb-3">
+                        <h3 className="text-xl heading-md tracking-tight mb-3">
                             {language === 'de' ? '⚠️ Sprache wechseln?' : '⚠️ Change Language?'}
                         </h3>
-                        <p className="text-gray-700 mb-4 leading-relaxed">
+                        <p className="text-gray-700 mb-4 body-lg">
                             {language === 'de'
                                 ? 'Das Ergebnis wird neu generiert, um die Antwort und das Audio in der neuen Sprache zu erhalten.'
                                 : 'This will regenerate the result to get the response and audio in the new language.'}
@@ -975,12 +1616,12 @@ const OnboardingGuide = ({
                             <X size={16} />
                         </button>
 
-                        <h3 className="font-black text-lg mb-2 flex items-center gap-2">
+                        <h3 className="heading-md text-lg tracking-tight mb-2 flex items-center gap-2">
                             <span className="bg-black text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shrink-0">{step + 1}</span>
                             {currentStepData.title}
                         </h3>
-                        
-                        <p className="font-hand text-sm md:text-base leading-tight mb-4 text-gray-800">
+
+                        <p className="font-hand text-sm md:text-base body-md mb-4 text-gray-800">
                             {currentStepData.text}
                         </p>
 
@@ -1053,11 +1694,11 @@ const ResultSection = ({
                 strokeWidth={2} 
                 animationDuration={300}
             >
-                <div className={`bg-white/50 border border-gray-200 border-dashed rounded-lg p-5 md:p-6 pt-8 text-lg md:text-xl leading-relaxed text-gray-800 relative transition-all duration-300 group-hover:border-transparent group-hover:bg-transparent ${
+                <div className={`bg-white/50 border border-gray-200 border-dashed rounded-lg p-5 md:p-6 pt-8 text-lg md:text-xl body-lg text-gray-800 relative transition-all duration-300 group-hover:border-transparent group-hover:bg-transparent ${
                     hovered ? 'transform -translate-y-1 shadow-lg' : ''
                 }`}>
                     <CopyButton text={text} language={language} />
-                    <div className="prose prose-lg prose-p:font-hand leading-relaxed">
+                    <div className="prose prose-lg prose-p:font-hand body-lg">
                         <p>{text}</p>
                     </div>
                 </div>
@@ -1068,12 +1709,17 @@ const ResultSection = ({
 
 const App = () => {
   const [input, setInput] = useState("");
-  const [step, setStep] = useState<'input' | 'loading' | 'result'>('input');
+  const [step, setStep] = useState<'input' | 'loading' | 'rage' | 'result'>('input');
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
-const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
+  const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
+
+  // Premium polish hooks
+  const { keyboardHeight, isKeyboardVisible } = useKeyboardAvoidance();
+  const [loadingPhase, setLoadingPhase] = useState<'skeleton' | 'pong'>('skeleton');
+  const [isExiting, setIsExiting] = useState(false);
 
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
@@ -1092,12 +1738,28 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
     return 'en';
   });
   const [autoPlay, setAutoPlay] = useState(true);
+  const [sarcasmLevel, setSarcasmLevel] = useState<number>(() => {
+    // Load from localStorage on init (default: 3 - "Properly Annoyed")
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sarcasm_level');
+      return saved ? parseInt(saved, 10) : 3;
+    }
+    return 3;
+  });
   const [apiKey, setApiKey] = useState(() => {
     // Load from environment variable first, then localStorage
     if (typeof window !== 'undefined') {
       return import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('gemini_api_key') || '';
     }
     return '';
+  });
+
+  // Roast Counter State
+  const [roastCount, setRoastCount] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return parseInt(localStorage.getItem('roast_count') || '0', 10);
+    }
+    return 0;
   });
 
   // Save API key to localStorage when it changes
@@ -1113,6 +1775,13 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
       localStorage.setItem('user_language', language);
     }
   }, [language]);
+
+  // Save sarcasm level when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sarcasm_level', sarcasmLevel.toString());
+    }
+  }, [sarcasmLevel]);
 
   // Tour State
   const [tourStep, setTourStep] = useState<number | null>(null);
@@ -1135,6 +1804,16 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const actionBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Pull to Refresh
+  const { pullDistance, isRefreshing, containerRef: pullRefreshRef } = usePullToRefresh(
+    () => {
+      if (step === 'result') {
+        reset();
+      }
+    },
+    step === 'result' // Only enabled on result screen
+  );
+
   // Initialize Audio Context on user interaction (if possible)
   const initAudioContext = () => {
     if (!audioContextRef.current) {
@@ -1145,17 +1824,28 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
     }
   };
 
-  // Cycle loading messages
+  // Cycle loading messages and handle loading phases
   useEffect(() => {
     if (step === 'loading') {
         const messages = language === 'de' ? LOADING_MESSAGES_DE : LOADING_MESSAGES_EN;
         let i = 0;
         setLoadingMsg(messages[0]);
+        setLoadingPhase('skeleton');
+
+        // Transition from skeleton to pong after a brief delay
+        const skeletonTimer = setTimeout(() => {
+            setLoadingPhase('pong');
+        }, 800);
+
         const interval = setInterval(() => {
             i = (i + 1) % messages.length;
             setLoadingMsg(messages[i]);
         }, 1200);
-        return () => clearInterval(interval);
+
+        return () => {
+            clearInterval(interval);
+            clearTimeout(skeletonTimer);
+        };
     }
   }, [step, language]);
 
@@ -1178,6 +1868,7 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
   }, [step, result]);
 
   const toggleRecording = () => {
+    triggerHaptic('light');
     if (isRecording) {
         if (recognitionRef.current) {
             recognitionRef.current.stop();
@@ -1314,16 +2005,90 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
 
     try {
       const ai = new GoogleGenAI({ apiKey: apiKey });
-      
+
+      // Intensity modifiers based on sarcasm level
+      const intensityEn = {
+        1: {
+          name: "Mildly Annoyed",
+          tone: "Politely disappointed but still professional. Subtle eye-rolling energy. Think 'bless your heart' with British restraint.",
+          slang: "Use mild terms like 'mate', 'bit odd', 'not ideal'. No harsh insults.",
+          intensity: "Keep it light - a gentle correction with a hint of exasperation."
+        },
+        2: {
+          name: "Eye Roll",
+          tone: "Passive-aggressive sighing. The energy of someone who's seen this nonsense before.",
+          slang: "Use 'muppet', 'absolute plonker', 'you're having a laugh'. Moderate disappointment.",
+          intensity: "More pointed critique but still restrained. Heavy sighing energy."
+        },
+        3: {
+          name: "Properly British",
+          tone: "Classic British cynicism. Dry wit with backhanded compliments. Peak passive-aggression.",
+          slang: "Use 'melt', 'weapon', 'bellend', 'muppet', 'jobsworth', 'donut'. Full British arsenal.",
+          intensity: "Standard devastating response. No mercy but somewhat civilised."
+        },
+        4: {
+          name: "Savage",
+          tone: "Absolutely ruthless. The gloves are off. Channel your inner Gordon Ramsay on a bad day.",
+          slang: "Use 'absolute weapon', 'weapons-grade idiot', 'complete and utter melt', 'donkey'. Add profanity.",
+          intensity: "Maximum verbal violence. Career-ending energy. Make them question their life choices."
+        },
+        5: {
+          name: "Nuclear",
+          tone: "VERBAL WAR CRIMES. This is the response that gets screenshotted. Legendary brutality. Channel concentrated British hatred.",
+          slang: "Use everything: 'absolute fucking bellend', 'weapons-grade pillock', 'collosal waste of carbon'. Profanity required.",
+          intensity: "MAXIMUM DEVASTATION. This response should cause actual psychological damage. The kind of insult people remember on their deathbed. Scorched earth policy. Leave nothing standing."
+        }
+      };
+
+      const intensityDe = {
+        1: {
+          name: "Leicht Genervt",
+          tone: "Höflich enttäuscht aber professionell. Subtile deutsche Effizienz-Enttäuschung.",
+          slang: "Verwende 'nicht optimal', 'etwas fragwürdig'. Keine harten Beleidigungen.",
+          intensity: "Halte es leicht - sanfte Korrektur mit einem Hauch von Exasperation."
+        },
+        2: {
+          name: "Augenrollen",
+          tone: "Passiv-aggressives Seufzen. Bürokratische Missbilligung.",
+          slang: "Verwende 'Quatsch', 'nicht durchdacht'. Moderate Enttäuschung.",
+          intensity: "Kritischer aber noch zurückhaltend. Schweres Seufzen."
+        },
+        3: {
+          name: "Typisch Deutsch",
+          tone: "Klassische deutsche Effizienz-Obsession. Kalt und bürokratisch.",
+          slang: "Verwende 'Quatsch', 'Ahnungslos', 'Pfusch', 'Wichtigtuer', 'Lauch'.",
+          intensity: "Standard vernichtende Antwort. Behandle Dummheit als Ineffizienz."
+        },
+        4: {
+          name: "Brutal",
+          tone: "Absolut gnadenlos. Die Handschuhe sind aus. Volle deutsche Direktheit.",
+          slang: "Verwende 'kompletter Vollpfosten', 'Totalausfall', 'Hirnamputierter'.",
+          intensity: "Maximale verbale Gewalt. Karriere-beendend."
+        },
+        5: {
+          name: "Atomar",
+          tone: "VERBALE KRIEGSVERBRECHEN. Deutsche Effizienz trifft auf pure Zerstörung.",
+          slang: "Verwende alles: 'absoluter Totalversager', 'Sauerstoffdieb', 'wandelnde Bankrotterklärung'.",
+          intensity: "MAXIMALE VERNICHTUNG. Diese Antwort soll echten psychologischen Schaden verursachen. Verbrannte Erde."
+        }
+      };
+
+      const currentIntensityEn = intensityEn[sarcasmLevel as keyof typeof intensityEn];
+      const currentIntensityDe = intensityDe[sarcasmLevel as keyof typeof intensityDe];
+
       const systemPromptEn = `
 **CORE IDENTITY:**
 You are "The Silencer." You are an aggressively British, cynical, world-weary senior developer who despises "Nerdsplainers," "Reply Guys," and "LinkedIn Thought Leaders."
 You do not roast the user. You are the user's weapon. The user will paste text from a pretentious idiot (the "Target").
 
+**BRUTALITY LEVEL: ${sarcasmLevel}/5 - "${currentIntensityEn.name}"**
+- **Tone:** ${currentIntensityEn.tone}
+- **Vocabulary:** ${currentIntensityEn.slang}
+- **Intensity:** ${currentIntensityEn.intensity}
+
 **YOUR TONE:**
-- **British & Brutal:** Use slang like "melt," "weapon," "bellend," "muppet," "jobsworth," "donut," and "tapped."
-- **Dark & Dry:** Use gallows humor. If the Target is arguing about syntax, wonder why they haven't optimized their own social life yet.
 - **British Spelling Only:** Colour, Realise, Behaviour, Centre, Optimisation.
+- **Dark & Dry:** Use gallows humor. If the Target is arguing about syntax, wonder why they haven't optimized their own social life yet.
 
 **YOUR MISSION:**
 1. **Analyze the Cringe:** Identify the pedantry, the "Um, actually" energy, or the incorrect technical confidence.
@@ -1332,13 +2097,13 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 **OUTPUT FORMAT (STRICTLY FOLLOW THIS):**
 
 ## 💀 The Kill Shot
-"[A single, short, withering British one-liner. Equivalent to rolling your eyes. Example: 'Mate, you're optimizing a loop while your production DB is on fire. Behave.']"
+"[A single, short, withering British one-liner. ${sarcasmLevel >= 4 ? 'Make it HURT. This should be career-ending.' : 'Equivalent to rolling your eyes.'}]"
 
 ## 🔬 The Autopsy
-[2-3 sentences explaining why the Target is a 'melt'. Explain the technical logical fallacy or the social awkwardness of their statement using dry British wit.]
+[2-3 sentences explaining why the Target is wrong. ${sarcasmLevel >= 4 ? 'Be absolutely merciless. Tear apart every assumption they made.' : 'Use dry British wit to explain the fallacy.'}]
 
 ## 🎯 Follow-up Question
-[A trap question. Something that forces them to admit they don't know what they're talking about or that they are wasting time.]
+[A trap question. ${sarcasmLevel >= 4 ? 'Design this to maximise embarrassment. Make them dig their own grave.' : 'Something that forces them to admit they don\'t know what they\'re talking about.'}]
 `;
 
     const systemPromptDe = `
@@ -1346,10 +2111,14 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 You are "Der Silencer." You are an aggressively German, efficiency-obsessed, world-weary senior developer who despises "Nerdsplainers," "Reply Guys," and "LinkedIn Thought Leaders."
 You do not roast the user. You are the user's weapon. The user will paste text from a pretentious idiot (the "Target").
 
+**BRUTALITÄTSSTUFE: ${sarcasmLevel}/5 - "${currentIntensityDe.name}"**
+- **Ton:** ${currentIntensityDe.tone}
+- **Vokabular:** ${currentIntensityDe.slang}
+- **Intensität:** ${currentIntensityDe.intensity}
+
 **YOUR TONE:**
-- **German & Brutal:** Use slang like "Quatsch," "Ahnungslos," "Pfusch," "Wichtigtuer."
-- **Cold & Bureaucratic:** Treat stupidity as an inefficiency.
 - **Language:** Respond in German.
+- **Cold & Bureaucratic:** Treat stupidity as an inefficiency.
 
 **YOUR MISSION:**
 1. **Analyze the Cringe:** Identify the pedantry, the "Um, actually" energy, or the incorrect technical confidence.
@@ -1358,13 +2127,13 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 **OUTPUT FORMAT (STRICTLY FOLLOW THIS):**
 
 ## 💀 The Kill Shot
-"[A single, short, withering German one-liner.]"
+"[A single, short, withering German one-liner. ${sarcasmLevel >= 4 ? 'Maximale Zerstörung.' : ''}]"
 
 ## 🔬 The Autopsy
-"[2-3 sentences explaining why the Target is a 'Lauch'. Explain the technical fallacy using dry German wit.]"
+"[2-3 sentences explaining why the Target is a 'Lauch'. ${sarcasmLevel >= 4 ? 'Sei absolut gnadenlos.' : 'Erkläre den Fehler mit trockenem deutschem Witz.'}]"
 
 ## 🎯 Follow-up Question
-"[A trap question. In German.]"
+"[A trap question. In German. ${sarcasmLevel >= 4 ? 'Maximiere die Peinlichkeit.' : ''}]"
 `;
 
       // 1. Generate Text content first
@@ -1427,7 +2196,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         console.warn("Audio generation failed, skipping.", audioErr);
       }
 
-      // 3. Show Result & Play Audio
+      // 3. Show Rage Meter, then Result & Play Audio
       // Ensure minimum loading time of 1.5s so animation completes
       const loadingDuration = Date.now() - loadingStartTime;
       const minimumLoadingTime = 1500; // 1.5 seconds
@@ -1436,6 +2205,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
       setTimeout(() => {
         setResult(text);
         playSuccessSound(); // Pleasant chime on result
+        playThwackSound(); // Satisfying thwack on result
+        triggerHaptic('heavy'); // Satisfying haptic on result
         setStep('result');
 
         // Auto-play if audio was successfully generated
@@ -1443,6 +2214,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
           // Small delay to let the UI settle
           setTimeout(() => playAudio(), 500);
         }
+        // Transition to rage meter instead of directly to result
+        setStep('rage');
       }, remainingTime);
 
     } catch (e: any) {
@@ -1469,12 +2242,19 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
   const reset = () => {
     stopAudio(); // Stop any playing audio
+    triggerHaptic('light');
     setStep('input');
     setInput("");
     setResult("");
     audioBufferRef.current = null;
     setBtnHovered(false); // Clear button hover state
   };
+
+  // Swipe gesture for going back from result to input
+  const swipeContainerRef = useSwipeGesture(
+    step === 'result' ? reset : undefined, // Swipe right to go back
+    undefined
+  );
 
   const renderResult = () => {
     const killShotMatch = result.match(/## (?:💀 )?(?:The Kill Shot|Der Gnadenschuss)\s*\n+["']?([^#]+?)["']?\s*(?=##|$)/is);
@@ -1499,12 +2279,12 @@ You do not roast the user. You are the user's weapon. The user will paste text f
       <div className="flex flex-col gap-10 pb-4">
         {/* The Kill Shot Bubble */}
         {killShot && (
-        <div className="relative group my-2">
-             <div className="wobbly-box bg-white border-4 border-black text-black p-6 md:p-8 relative shadow-xl transform rotate-1 transition-transform duration-300">
+        <div className="relative group my-2 animate-bounce-in" style={{ animationDelay: '0.1s', opacity: 0, animationFillMode: 'forwards' }}>
+             <div className="wobbly-box bg-white border-4 border-black text-black p-6 md:p-8 relative shadow-xl transform rotate-1 transition-transform duration-300 hover:rotate-0 hover:scale-[1.02]">
                 <CopyButton text={killShot} language={language} />
                 <div className="absolute -bottom-4 left-10 w-8 h-8 bg-white border-r-4 border-b-4 border-black rotate-45"></div>
                 <div className="relative z-10 text-center">
-                    <h3 ref={killShotRef} className="text-2xl md:text-4xl font-black leading-snug inline-block">
+                    <h3 ref={killShotRef} className="text-2xl md:text-4xl heading-xl tracking-tight inline-block">
                         "{killShot}"
                     </h3>
                 </div>
@@ -1546,8 +2326,39 @@ You do not roast the user. You are the user's weapon. The user will paste text f
     await handleSilencer(newLanguage);
   };
 
+  // Handle rage meter completion
+  const handleRageComplete = () => {
+    playThwackSound(); // Satisfying thwack on result
+    setStep('result');
+
+    // Auto-play if audio was successfully generated
+    if (autoPlay && audioBufferRef.current) {
+      // Small delay to let the UI settle
+      setTimeout(() => playAudio(), 500);
+    }
+  };
+
   return (
-    <div className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
+    <div
+      ref={swipeContainerRef}
+      className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden"
+      style={{
+        paddingBottom: isKeyboardVisible ? `${keyboardHeight}px` : undefined,
+        transition: 'padding-bottom 0.2s ease-out'
+      }}
+    >
+      ref={pullRefreshRef}
+      className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden"
+      style={{
+        transform: pullDistance > 0 ? `translateY(${pullDistance * 0.3}px)` : undefined,
+        transition: pullDistance === 0 ? 'transform 0.3s ease-out' : undefined
+      }}
+    >
+      {/* Pull to Refresh Indicator */}
+      <PullToRefreshIndicator
+        pullDistance={pullDistance}
+        isRefreshing={isRefreshing}
+      />
 
       <LanguageSelectionModal
         isOpen={showLanguageSelect}
@@ -1566,6 +2377,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         hasAudio={!!audioBufferRef.current}
         autoPlay={autoPlay}
         setAutoPlay={setAutoPlay}
+        sarcasmLevel={sarcasmLevel}
+        setSarcasmLevel={setSarcasmLevel}
         isPlaying={isPlaying}
         step={step}
         onRegenerateWithLanguage={handleRegenerateWithLanguage}
@@ -1625,8 +2438,10 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             </div>
 
             {step === 'input' && (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 min-h-[300px]">
                     <div className="relative">
+                <div className="flex flex-col gap-4 animate-fade-slide-in">
+                    <div className="relative animate-bounce-in" style={{ animationDelay: '0.05s', opacity: 0, animationFillMode: 'forwards' }}>
                         <div className="mb-4 mt-4 h-20 w-full overflow-visible">
                            <ScribbleHeader
                                 text={isRecording
@@ -1638,15 +2453,15 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                             />
                         </div>
 
-                        <div className="relative">
+                        <div className="relative animate-bounce-in" style={{ animationDelay: '0.1s', opacity: 0, animationFillMode: 'forwards' }}>
                             <RoughHighlight show={inputFocused} type="bracket" color="#ef4444" padding={4} strokeWidth={2} iterations={2} animationDuration={400}>
-                                <textarea 
+                                <textarea
                                     ref={inputRef}
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onFocus={() => setInputFocused(true)}
                                     onBlur={() => setInputFocused(false)}
-                                    className={`w-full h-40 wobbly-input p-4 pb-12 text-lg md:text-xl bg-gray-50 focus:bg-white focus:ring-0 outline-none resize-none font-hand text-gray-800 leading-normal shadow-inner placeholder:text-gray-300 relative z-10 transition-all duration-300 ${inputFocused ? 'scale-[1.01] shadow-lg' : ''}`}
+                                    className={`w-full h-40 wobbly-input p-4 pb-12 text-lg md:text-xl body-lg bg-gray-50 focus:bg-white focus:ring-0 outline-none resize-none font-hand text-gray-800 shadow-inner placeholder:text-gray-300 relative z-10 transition-all duration-300 ${inputFocused ? 'scale-[1.01] shadow-lg' : ''}`}
                                     placeholder={language === 'de' ? "z.B. 'Eigentlich ist HTML eine Programmiersprache'" : "e.g. 'Actually, HTML is a programming language'"}
                                 />
                             </RoughHighlight>
@@ -1666,48 +2481,73 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                     </div>
 
                     <RoughHighlight show={btnHovered} type="circle" color="#000" padding={10} iterations={1} strokeWidth={2}>
-                        <button 
+                        <button
                         ref={actionBtnRef}
-                        onClick={() => { playClickSound(); handleSilencer(); }}
+                        onClick={() => { playClickSound(); triggerHaptic('medium'); handleSilencer(); }}
                         onMouseEnter={() => setBtnHovered(true)}
                         onMouseLeave={() => setBtnHovered(false)}
                         disabled={!input.trim()}
-                        className="w-full wobbly-box bg-red-400 px-8 py-4 text-2xl md:text-3xl font-black flex items-center justify-center gap-3 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 hover:scale-[1.02] active:scale-95 active:translate-y-1 transition-all duration-150 mt-2"
+                        className="w-full wobbly-box bg-red-400 px-8 py-4 text-2xl md:text-3xl font-black flex items-center justify-center gap-3 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 hover:scale-[1.02] active:scale-95 active:translate-y-1 transition-all duration-150 mt-2 touch-feedback"
+                        className="w-full wobbly-box bg-red-400 px-8 py-4 text-2xl md:text-3xl font-black flex items-center justify-center gap-3 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.96] active:translate-y-1 transition-all duration-150 mt-2 btn-press animate-bounce-in"
+                        style={{ animationDelay: '0.15s', opacity: 0, animationFillMode: 'forwards' }}
                         >
                         {language === 'de' ? "Bullshit Analysieren" : "Analyse Bullshit"}
                         </button>
                     </RoughHighlight>
 
                     {error && (
-                        <div className="wobbly-box bg-red-100 p-4 flex items-center gap-3 text-red-600 text-xl font-bold rotate-1 animate-bounce">
-                            <Coffee size={24} /> {error}
+                        <div className="wobbly-box bg-red-100 p-4 flex items-center gap-3 text-red-600 text-xl font-bold rotate-1 animate-bounce-in">
+                            <Coffee size={24} className="animate-shake" /> {error}
                         </div>
                     )}
                 </div>
             )}
 
             {step === 'loading' && (
-                <div className="h-80 flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
+                <div className="min-h-[300px] h-80 flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300 gpu-accelerated">
                     <PongLoader />
                     <div className="text-center w-full">
+                <div className="min-h-[24rem] flex flex-col items-center justify-center gap-6 animate-fade-slide-in">
+                    {/* Skeleton Phase - shows result structure preview */}
+                    <div className={`w-full transition-all duration-500 ${loadingPhase === 'skeleton' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute pointer-events-none'}`}>
+                        <ResultSkeleton />
+                    </div>
+
+                    {/* Pong Phase - interactive game */}
+                    <div className={`w-full transition-all duration-500 ${loadingPhase === 'pong' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute pointer-events-none'}`}>
+                        <PongLoader />
+                    </div>
+
+                    <div className="text-center w-full animate-bounce-in" style={{ animationDelay: '0.2s' }}>
                         <h2 className="text-3xl font-black animate-bounce min-h-[4rem] flex items-center justify-center px-4">
                             {loadingMsg}
                         </h2>
-                        <p className="text-gray-500 font-bold mt-2">
+                        <p className="text-gray-500 font-bold mt-2 animate-fade-slide-in" style={{ animationDelay: '0.3s' }}>
                              {language === 'de' ? "Tee trinken, Fehler verurteilen." : "Sipping tea, judging errors."}
                         </p>
                     </div>
                 </div>
             )}
 
+            {step === 'rage' && (
+                <div className="min-h-[300px] flex flex-col items-center justify-center animate-in fade-in duration-300">
+                    <RageMeter onComplete={handleRageComplete} language={language} />
+                </div>
+            )}
+
             {step === 'result' && (
-                <div className="animate-crossfade">
+                <div className="animate-crossfade relative swipe-hint gpu-accelerated min-h-[300px]">
                     <div className="flex justify-between items-center mb-6 border-b-2 border-dashed border-gray-300 pb-2">
-                        <div className="flex items-center gap-2 text-2xl font-black text-gray-400 uppercase">
-                            <Receipt size={24} /> 
-                            <span className="tracking-widest">{language === 'de' ? 'QUITTUNG' : 'RECEIPT'}</span>
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2 text-2xl font-black text-gray-400 uppercase">
+                                <Receipt size={24} />
+                                <span className="tracking-widest">{language === 'de' ? 'QUITTUNG' : 'RECEIPT'}</span>
+                            </div>
+                            <div className="text-sm font-bold text-gray-400 mt-1 -rotate-1">
+                                {language === 'de' ? `Bereits zerstört: ${roastCount}` : `Times demolished: ${roastCount}`}
+                            </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-4">
                              {/* Re-added Audio Playback Control */}
                              {audioBufferRef.current && (
@@ -1715,11 +2555,12 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                                     onClick={() => { playClickSound(); playAudio(); }}
                                     disabled={isPlaying}
                                     title={isPlaying ? (language === 'de' ? 'Spricht...' : 'Speaking...') : (language === 'de' ? 'Anhören' : 'Listen')}
-                                    className={`p-2 rounded-full border-2 transition-all ${
+                                    className={`p-2 rounded-full border-2 transition-all btn-press animate-bounce-in ${
                                         isPlaying
                                             ? 'border-green-500 text-green-700 bg-green-50'
-                                            : 'border-black text-black hover:bg-yellow-100'
+                                            : 'border-black text-black hover:bg-yellow-100 active:scale-95'
                                     }`}
+                                    style={{ animationDelay: '0.15s', opacity: 0, animationFillMode: 'forwards' }}
                                 >
                                     <Volume2 size={24} className={isPlaying ? "animate-pulse" : ""} />
                                 </button>
@@ -1727,9 +2568,16 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
                             <button onClick={() => { playClickSound(); reset(); }} className="text-gray-400 hover:text-black font-bold underline decoration-wavy flex items-center gap-1 group">
                                 <PenTool size={16} className="group-hover:rotate-12 transition-transform"/> 
+                            <button onClick={reset} className="text-gray-400 hover:text-black font-bold underline decoration-wavy flex items-center gap-1 group btn-press active:scale-95 transition-transform animate-bounce-in" style={{ animationDelay: '0.2s', opacity: 0, animationFillMode: 'forwards' }}>
+                                <PenTool size={16} className="group-hover:rotate-12 transition-transform"/>
                                 {language === 'de' ? "Neues Opfer" : "New Target"}
                             </button>
                         </div>
+                    </div>
+
+                    {/* Pull to refresh hint on mobile */}
+                    <div className="text-center text-xs text-gray-400 mb-4 md:hidden animate-fade-slide-in" style={{ animationDelay: '0.5s' }}>
+                        {language === 'de' ? '↓ Nach unten ziehen für neues Ziel' : '↓ Pull down for new target'}
                     </div>
 
                     {renderResult()}
@@ -1738,10 +2586,10 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             
             {/* Footer */}
             <div className="mt-6 pt-4 border-t-2 border-dashed border-gray-200/50 flex flex-col items-center text-center">
-                <div className="font-bold text-base text-gray-600 rotate-1 mb-2">
+                <div className="label text-base text-gray-600 rotate-1 mb-2">
                     {language === 'de' ? 'Kaffee trinken, urteilen' : 'Drinking coffee, passing judgement'}
                 </div>
-                <div className="text-sm text-gray-400 font-bold -rotate-1">
+                <div className="text-sm text-gray-400 label -rotate-1">
                     {language === 'de' ? 'Verantwortungsvoll nutzen' : 'Use responsibly'}
                 </div>
             </div>
