@@ -1351,6 +1351,14 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
     return '';
   });
 
+  // Roast Counter State
+  const [roastCount, setRoastCount] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return parseInt(localStorage.getItem('roast_count') || '0', 10);
+    }
+    return 0;
+  });
+
   // Save API key to localStorage when it changes
   useEffect(() => {
     if (apiKey) {
@@ -1966,9 +1974,14 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             {step === 'result' && (
                 <div className="animate-crossfade">
                     <div className="flex justify-between items-center mb-6 border-b-2 border-dashed border-gray-300 pb-2">
-                        <div className="flex items-center gap-2 text-2xl font-black text-gray-400 uppercase">
-                            <Receipt size={24} /> 
-                            <span className="tracking-widest">{language === 'de' ? 'QUITTUNG' : 'RECEIPT'}</span>
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2 text-2xl font-black text-gray-400 uppercase">
+                                <Receipt size={24} />
+                                <span className="tracking-widest">{language === 'de' ? 'QUITTUNG' : 'RECEIPT'}</span>
+                            </div>
+                            <div className="text-sm font-bold text-gray-400 mt-1 -rotate-1">
+                                {language === 'de' ? `Bereits zerstört: ${roastCount}` : `Times demolished: ${roastCount}`}
+                            </div>
                         </div>
                         
                         <div className="flex items-center gap-4">
