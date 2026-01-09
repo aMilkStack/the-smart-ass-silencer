@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { annotate } from "rough-notation";
 import logoImg from "./logo.png";
-import { 
+import {
   Coffee,
   Mic,
   Glasses,
@@ -16,7 +16,8 @@ import {
   Settings,
   X,
   HelpCircle,
-  ArrowRight
+  ArrowRight,
+  RotateCw
 } from "lucide-react";
 
 // --- Sound Effects ---
@@ -526,6 +527,194 @@ const PongLoader = () => {
 };
 
 
+// Loading Skeleton Component
+const Skeleton = ({ className = "", lines = 3 }: { className?: string; lines?: number }) => {
+  return (
+    <div className={`space-y-3 ${className}`}>
+      {Array.from({ length: lines }).map((_, i) => (
+        <div
+          key={i}
+          className="skeleton h-4"
+          style={{
+            width: i === lines - 1 ? '60%' : i % 2 === 0 ? '100%' : '85%',
+            animationDelay: `${i * 0.1}s`
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+// Result Skeleton - Shows expected result structure while loading
+const ResultSkeleton = () => {
+  return (
+    <div className="animate-fade-slide-in space-y-8 py-4">
+      {/* Kill Shot Skeleton */}
+      <div className="wobbly-box bg-white border-4 border-gray-200 p-6 md:p-8 relative">
+        <div className="space-y-3">
+          <div className="skeleton h-8 w-3/4 mx-auto" />
+          <div className="skeleton h-8 w-1/2 mx-auto" />
+        </div>
+      </div>
+
+      {/* Autopsy Skeleton */}
+      <div className="mt-8">
+        <div className="skeleton h-6 w-32 mb-4" />
+        <div className="bg-gray-50 border border-gray-200 border-dashed rounded-lg p-5 md:p-6">
+          <Skeleton lines={3} />
+        </div>
+      </div>
+
+      {/* Follow-up Skeleton */}
+      <div className="mt-8">
+        <div className="skeleton h-6 w-40 mb-4" />
+        <div className="bg-gray-50 border border-gray-200 border-dashed rounded-lg p-5 md:p-6">
+          <Skeleton lines={2} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Pull to Refresh Hook
+const usePullToRefresh = (onRefresh: () => void, enabled: boolean = true) => {
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const startYRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const threshold = 80;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0) {
+        startYRef.current = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (startYRef.current === null || isRefreshing) return;
+
+      const currentY = e.touches[0].clientY;
+      const distance = currentY - startYRef.current;
+
+      if (distance > 0 && window.scrollY === 0) {
+        e.preventDefault();
+        // Apply resistance to pull
+        const resistedDistance = Math.min(distance * 0.5, 150);
+        setPullDistance(resistedDistance);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (pullDistance > threshold && !isRefreshing) {
+        setIsRefreshing(true);
+        onRefresh();
+        setTimeout(() => {
+          setIsRefreshing(false);
+          setPullDistance(0);
+        }, 1000);
+      } else {
+        setPullDistance(0);
+      }
+      startYRef.current = null;
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [enabled, onRefresh, pullDistance, isRefreshing]);
+
+  return { pullDistance, isRefreshing, containerRef };
+};
+
+// Pull to Refresh Indicator Component
+const PullToRefreshIndicator = ({
+  pullDistance,
+  isRefreshing,
+  threshold = 80
+}: {
+  pullDistance: number;
+  isRefreshing: boolean;
+  threshold?: number;
+}) => {
+  const progress = Math.min(pullDistance / threshold, 1);
+  const rotation = progress * 180;
+
+  if (pullDistance === 0 && !isRefreshing) return null;
+
+  return (
+    <div
+      className="absolute left-1/2 -translate-x-1/2 z-50 pull-indicator"
+      style={{
+        top: Math.min(pullDistance * 0.5, 60) - 40,
+        opacity: isRefreshing ? 1 : progress
+      }}
+    >
+      <div className={`bg-white wobbly-box p-3 shadow-lg ${isRefreshing ? 'animate-bounce' : ''}`}>
+        <RotateCw
+          size={24}
+          className={isRefreshing ? 'animate-spin' : ''}
+          style={{
+            transform: isRefreshing ? undefined : `rotate(${rotation}deg)`,
+            transition: 'transform 0.1s ease-out'
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// Animated Button Component with enhanced press state
+const AnimatedButton = ({
+  children,
+  onClick,
+  disabled,
+  className = "",
+  variant = "primary"
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  className?: string;
+  variant?: "primary" | "secondary";
+}) => {
+  const [isPressed, setIsPressed] = useState(false);
+
+  const baseClasses = "btn-press transition-all duration-150 transform";
+  const variantClasses = variant === "primary"
+    ? "wobbly-box bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+    : "wobbly-box bg-white border-4 border-black hover:bg-yellow-100";
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseDown={() => setIsPressed(true)}
+      onMouseUp={() => setIsPressed(false)}
+      onMouseLeave={() => setIsPressed(false)}
+      onTouchStart={() => setIsPressed(true)}
+      onTouchEnd={() => setIsPressed(false)}
+      className={`${baseClasses} ${variantClasses} ${className} ${
+        isPressed && !disabled ? 'scale-[0.96] translate-y-0.5' : 'hover:-translate-y-0.5 hover:scale-[1.02]'
+      }`}
+    >
+      {children}
+    </button>
+  );
+};
+
 // Reusable Scribble Text (SVG Animation)
 const ScribbleHeader = ({ 
     text, 
@@ -885,13 +1074,14 @@ const LanguageSelectionModal = ({
                 <div className="space-y-3">
                     <button
                         onClick={() => handleSelect('en')}
-                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:scale-[0.97] active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 btn-press animate-bounce-in"
                     >
                         English
                     </button>
                     <button
                         onClick={() => handleSelect('de')}
-                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100"
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:scale-[0.97] active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 btn-press animate-bounce-in-delayed"
+                        style={{ animationDelay: '0.1s' }}
                     >
                         Deutsch
                     </button>
@@ -1397,7 +1587,9 @@ const App = () => {
   const [error, setError] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
-const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
+  const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
+  const [loadingPhase, setLoadingPhase] = useState<'skeleton' | 'pong'>('skeleton');
+  const [isExiting, setIsExiting] = useState(false);
 
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
@@ -1482,6 +1674,16 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const actionBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Pull to Refresh
+  const { pullDistance, isRefreshing, containerRef: pullRefreshRef } = usePullToRefresh(
+    () => {
+      if (step === 'result') {
+        reset();
+      }
+    },
+    step === 'result' // Only enabled on result screen
+  );
+
   // Initialize Audio Context on user interaction (if possible)
   const initAudioContext = () => {
     if (!audioContextRef.current) {
@@ -1492,17 +1694,28 @@ const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
     }
   };
 
-  // Cycle loading messages
+  // Cycle loading messages and handle loading phases
   useEffect(() => {
     if (step === 'loading') {
         const messages = language === 'de' ? LOADING_MESSAGES_DE : LOADING_MESSAGES_EN;
         let i = 0;
         setLoadingMsg(messages[0]);
+        setLoadingPhase('skeleton');
+
+        // Transition from skeleton to pong after a brief delay
+        const skeletonTimer = setTimeout(() => {
+            setLoadingPhase('pong');
+        }, 800);
+
         const interval = setInterval(() => {
             i = (i + 1) % messages.length;
             setLoadingMsg(messages[i]);
         }, 1200);
-        return () => clearInterval(interval);
+
+        return () => {
+            clearInterval(interval);
+            clearTimeout(skeletonTimer);
+        };
     }
   }, [step, language]);
 
@@ -1918,8 +2131,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
       <div className="flex flex-col gap-10 pb-4">
         {/* The Kill Shot Bubble */}
         {killShot && (
-        <div className="relative group my-2">
-             <div className="wobbly-box bg-white border-4 border-black text-black p-6 md:p-8 relative shadow-xl transform rotate-1 transition-transform duration-300">
+        <div className="relative group my-2 animate-bounce-in" style={{ animationDelay: '0.1s', opacity: 0, animationFillMode: 'forwards' }}>
+             <div className="wobbly-box bg-white border-4 border-black text-black p-6 md:p-8 relative shadow-xl transform rotate-1 transition-transform duration-300 hover:rotate-0 hover:scale-[1.02]">
                 <CopyButton text={killShot} language={language} />
                 <div className="absolute -bottom-4 left-10 w-8 h-8 bg-white border-r-4 border-b-4 border-black rotate-45"></div>
                 <div className="relative z-10 text-center">
@@ -1978,7 +2191,19 @@ You do not roast the user. You are the user's weapon. The user will paste text f
   };
 
   return (
-    <div className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
+    <div
+      ref={pullRefreshRef}
+      className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden"
+      style={{
+        transform: pullDistance > 0 ? `translateY(${pullDistance * 0.3}px)` : undefined,
+        transition: pullDistance === 0 ? 'transform 0.3s ease-out' : undefined
+      }}
+    >
+      {/* Pull to Refresh Indicator */}
+      <PullToRefreshIndicator
+        pullDistance={pullDistance}
+        isRefreshing={isRefreshing}
+      />
 
       <LanguageSelectionModal
         isOpen={showLanguageSelect}
@@ -2058,8 +2283,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             </div>
 
             {step === 'input' && (
-                <div className="flex flex-col gap-4">
-                    <div className="relative">
+                <div className="flex flex-col gap-4 animate-fade-slide-in">
+                    <div className="relative animate-bounce-in" style={{ animationDelay: '0.05s', opacity: 0, animationFillMode: 'forwards' }}>
                         <div className="mb-4 mt-4 h-20 w-full overflow-visible">
                            <ScribbleHeader
                                 text={isRecording
@@ -2071,9 +2296,9 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                             />
                         </div>
 
-                        <div className="relative">
+                        <div className="relative animate-bounce-in" style={{ animationDelay: '0.1s', opacity: 0, animationFillMode: 'forwards' }}>
                             <RoughHighlight show={inputFocused} type="bracket" color="#ef4444" padding={4} strokeWidth={2} iterations={2} animationDuration={400}>
-                                <textarea 
+                                <textarea
                                     ref={inputRef}
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
@@ -2099,34 +2324,44 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                     </div>
 
                     <RoughHighlight show={btnHovered} type="circle" color="#000" padding={10} iterations={1} strokeWidth={2}>
-                        <button 
+                        <button
                         ref={actionBtnRef}
                         onClick={() => { playClickSound(); handleSilencer(); }}
                         onMouseEnter={() => setBtnHovered(true)}
                         onMouseLeave={() => setBtnHovered(false)}
                         disabled={!input.trim()}
-                        className="w-full wobbly-box bg-red-400 px-8 py-4 text-2xl md:text-3xl font-black flex items-center justify-center gap-3 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 hover:scale-[1.02] active:scale-95 active:translate-y-1 transition-all duration-150 mt-2"
+                        className="w-full wobbly-box bg-red-400 px-8 py-4 text-2xl md:text-3xl font-black flex items-center justify-center gap-3 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.96] active:translate-y-1 transition-all duration-150 mt-2 btn-press animate-bounce-in"
+                        style={{ animationDelay: '0.15s', opacity: 0, animationFillMode: 'forwards' }}
                         >
                         {language === 'de' ? "Bullshit Analysieren" : "Analyse Bullshit"}
                         </button>
                     </RoughHighlight>
 
                     {error && (
-                        <div className="wobbly-box bg-red-100 p-4 flex items-center gap-3 text-red-600 text-xl font-bold rotate-1 animate-bounce">
-                            <Coffee size={24} /> {error}
+                        <div className="wobbly-box bg-red-100 p-4 flex items-center gap-3 text-red-600 text-xl font-bold rotate-1 animate-bounce-in">
+                            <Coffee size={24} className="animate-shake" /> {error}
                         </div>
                     )}
                 </div>
             )}
 
             {step === 'loading' && (
-                <div className="h-80 flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
-                    <PongLoader />
-                    <div className="text-center w-full">
+                <div className="min-h-[24rem] flex flex-col items-center justify-center gap-6 animate-fade-slide-in">
+                    {/* Skeleton Phase - shows result structure preview */}
+                    <div className={`w-full transition-all duration-500 ${loadingPhase === 'skeleton' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute pointer-events-none'}`}>
+                        <ResultSkeleton />
+                    </div>
+
+                    {/* Pong Phase - interactive game */}
+                    <div className={`w-full transition-all duration-500 ${loadingPhase === 'pong' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute pointer-events-none'}`}>
+                        <PongLoader />
+                    </div>
+
+                    <div className="text-center w-full animate-bounce-in" style={{ animationDelay: '0.2s' }}>
                         <h2 className="text-3xl font-black animate-bounce min-h-[4rem] flex items-center justify-center px-4">
                             {loadingMsg}
                         </h2>
-                        <p className="text-gray-500 font-bold mt-2">
+                        <p className="text-gray-500 font-bold mt-2 animate-fade-slide-in" style={{ animationDelay: '0.3s' }}>
                              {language === 'de' ? "Tee trinken, Fehler verurteilen." : "Sipping tea, judging errors."}
                         </p>
                     </div>
@@ -2151,7 +2386,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                                 {language === 'de' ? `Bereits zerstört: ${roastCount}` : `Times demolished: ${roastCount}`}
                             </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-4">
                              {/* Re-added Audio Playback Control */}
                              {audioBufferRef.current && (
@@ -2159,21 +2394,27 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                                     onClick={playAudio}
                                     disabled={isPlaying}
                                     title={isPlaying ? (language === 'de' ? 'Spricht...' : 'Speaking...') : (language === 'de' ? 'Anhören' : 'Listen')}
-                                    className={`p-2 rounded-full border-2 transition-all ${
+                                    className={`p-2 rounded-full border-2 transition-all btn-press animate-bounce-in ${
                                         isPlaying
                                             ? 'border-green-500 text-green-700 bg-green-50'
-                                            : 'border-black text-black hover:bg-yellow-100'
+                                            : 'border-black text-black hover:bg-yellow-100 active:scale-95'
                                     }`}
+                                    style={{ animationDelay: '0.15s', opacity: 0, animationFillMode: 'forwards' }}
                                 >
                                     <Volume2 size={24} className={isPlaying ? "animate-pulse" : ""} />
                                 </button>
                              )}
 
-                            <button onClick={reset} className="text-gray-400 hover:text-black font-bold underline decoration-wavy flex items-center gap-1 group">
-                                <PenTool size={16} className="group-hover:rotate-12 transition-transform"/> 
+                            <button onClick={reset} className="text-gray-400 hover:text-black font-bold underline decoration-wavy flex items-center gap-1 group btn-press active:scale-95 transition-transform animate-bounce-in" style={{ animationDelay: '0.2s', opacity: 0, animationFillMode: 'forwards' }}>
+                                <PenTool size={16} className="group-hover:rotate-12 transition-transform"/>
                                 {language === 'de' ? "Neues Opfer" : "New Target"}
                             </button>
                         </div>
+                    </div>
+
+                    {/* Pull to refresh hint on mobile */}
+                    <div className="text-center text-xs text-gray-400 mb-4 md:hidden animate-fade-slide-in" style={{ animationDelay: '0.5s' }}>
+                        {language === 'de' ? '↓ Nach unten ziehen für neues Ziel' : '↓ Pull down for new target'}
                     </div>
 
                     {renderResult()}
