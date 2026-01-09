@@ -150,6 +150,21 @@
       }
     </script>
     <style>
+      /* Smooth scroll behavior */
+      html {
+        scroll-behavior: smooth;
+      }
+
+      /* Reduce motion for accessibility */
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
       /* ========================================
          DESIGN TOKENS - Typography & Spacing
          ======================================== */
@@ -198,6 +213,8 @@
         color: var(--color-text);
         line-height: var(--leading-relaxed);
         -webkit-tap-highlight-color: transparent; /* Remove blue highlight on tap */
+        /* Prevent overscroll bounce on iOS */
+        overscroll-behavior: none;
       }
 
       .font-hand {
@@ -329,11 +346,72 @@
         25% { transform: rotate(15deg); }
         75% { transform: rotate(-15deg); }
       }
-      
+
       .animate-shake {
         animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
       }
 
+      /* --- Premium Polish: Layout Shift Prevention --- */
+
+      /* Reserve space for content to prevent layout shift */
+      .content-placeholder {
+        min-height: 200px;
+        contain: layout style;
+      }
+
+      /* Optimistic loading skeleton */
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+
+      .skeleton {
+        background: linear-gradient(
+          90deg,
+          rgba(0,0,0,0.06) 25%,
+          rgba(0,0,0,0.12) 37%,
+          rgba(0,0,0,0.06) 63%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.4s ease-in-out infinite;
+        border-radius: 4px;
+      }
+
+      /* Swipe hint indicator for result screen */
+      .swipe-hint::after {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 4px;
+        height: 48px;
+        background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.1), transparent);
+        border-radius: 2px;
+        opacity: 0;
+        animation: swipeHintPulse 2s ease-in-out 1s 3;
+      }
+
+      @keyframes swipeHintPulse {
+        0%, 100% { opacity: 0; transform: translateY(-50%) translateX(0); }
+        50% { opacity: 0.5; transform: translateY(-50%) translateX(8px); }
+      }
+
+      /* GPU acceleration for smoother animations */
+      .gpu-accelerated {
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        will-change: transform, opacity;
+      }
+
+      /* Instant feedback for touch */
+      .touch-feedback {
+        transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+      }
+
+      .touch-feedback:active {
+        transform: scale(0.97);
+        opacity: 0.9;
       /* Rage Meter Particle Explosion */
       @keyframes particle-fly {
         0% {

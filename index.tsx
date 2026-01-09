@@ -89,6 +89,108 @@ const playPopSound = () => {
   } catch (e) {}
 };
 
+// --- Haptic Feedback ---
+const triggerHaptic = (style: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') => {
+  if (!navigator.vibrate) return;
+
+  const patterns: Record<string, number | number[]> = {
+    light: 10,
+    medium: 20,
+    heavy: 30,
+    success: [10, 50, 20],
+    warning: [20, 30, 20],
+    error: [30, 50, 30, 50, 30],
+  };
+
+  try {
+    navigator.vibrate(patterns[style] || 10);
+  } catch (e) {
+    // Silently fail if vibration is not available
+  }
+};
+
+// --- Swipe Gesture Hook ---
+const useSwipeGesture = (
+  onSwipeRight?: () => void,
+  onSwipeLeft?: () => void,
+  threshold: number = 80
+) => {
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: Date.now()
+      };
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!touchStartRef.current) return;
+
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = touch.clientY - touchStartRef.current.y;
+      const deltaTime = Date.now() - touchStartRef.current.time;
+
+      // Only trigger if horizontal movement is dominant and fast enough
+      if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && deltaTime < 300) {
+        if (deltaX > threshold && onSwipeRight) {
+          triggerHaptic('light');
+          onSwipeRight();
+        } else if (deltaX < -threshold && onSwipeLeft) {
+          triggerHaptic('light');
+          onSwipeLeft();
+        }
+      }
+
+      touchStartRef.current = null;
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [onSwipeRight, onSwipeLeft, threshold]);
+
+  return containerRef;
+};
+
+// --- Keyboard Avoidance Hook ---
+const useKeyboardAvoidance = () => {
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    // Use visualViewport API for accurate keyboard detection
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const handleResize = () => {
+      const keyboardH = window.innerHeight - viewport.height;
+      setKeyboardHeight(keyboardH > 50 ? keyboardH : 0);
+      setIsKeyboardVisible(keyboardH > 50);
+    };
+
+    viewport.addEventListener('resize', handleResize);
+    viewport.addEventListener('scroll', handleResize);
+
+    return () => {
+      viewport.removeEventListener('resize', handleResize);
+      viewport.removeEventListener('scroll', handleResize);
+    };
+  }, []);
+
+  return { keyboardHeight, isKeyboardVisible };
 const playExplosionSound = () => {
   try {
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -1016,17 +1118,19 @@ const CopyButton = ({ text, language }: { text: string, language: 'en' | 'de' })
         try {
             await navigator.clipboard.writeText(text);
             playPopSound();
+            triggerHaptic('success');
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             console.error('Failed to copy', err);
+            triggerHaptic('error');
         }
     };
 
     return (
         <button
             onClick={handleCopy}
-            className={`absolute top-2 right-2 p-3 md:p-2 rounded-full hover:bg-black/5 transition-all duration-200 group z-20 ${copied ? 'animate-pop bg-green-50/50' : 'hover:scale-110 active:scale-90'}`}
+            className={`absolute top-2 right-2 p-3 md:p-2 rounded-full hover:bg-black/5 transition-all duration-200 group z-20 touch-feedback ${copied ? 'animate-pop bg-green-50/50' : 'hover:scale-110 active:scale-90'}`}
             title={language === 'de' ? 'In Zwischenablage kopieren' : 'Copy to clipboard'}
         >
             <div className="relative w-5 h-5">
@@ -1058,6 +1162,7 @@ const LanguageSelectionModal = ({
     if (!isOpen) return null;
 
     const handleSelect = (lang: 'en' | 'de') => {
+        triggerHaptic('light');
         localStorage.setItem('language_selected', 'true');
         localStorage.setItem('user_language', lang);
         onSelectLanguage(lang);
@@ -1074,12 +1179,14 @@ const LanguageSelectionModal = ({
                 <div className="space-y-3">
                     <button
                         onClick={() => handleSelect('en')}
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 touch-feedback"
                         className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:scale-[0.97] active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 btn-press animate-bounce-in"
                     >
                         English
                     </button>
                     <button
                         onClick={() => handleSelect('de')}
+                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 touch-feedback"
 8                        className="w-full p-4 font-black text-xl bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:scale-[0.97] active:shadow-none active:translate-x-[6px] active:translate-y-[6px] hover:bg-yellow-100 btn-press animate-bounce-in-delayed"
                         style={{ animationDelay: '0.1s' }}
                     >
@@ -1131,6 +1238,7 @@ const SettingsModal = ({
 
     const handleLanguageChange = (newLang: 'en' | 'de') => {
         if (newLang === language) return;
+        triggerHaptic('light');
 
         // If viewing results, show confirmation
         if (step === 'result') {
@@ -1588,6 +1696,9 @@ const App = () => {
   const [inputFocused, setInputFocused] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
+
+  // Premium polish hooks
+  const { keyboardHeight, isKeyboardVisible } = useKeyboardAvoidance();
   const [loadingPhase, setLoadingPhase] = useState<'skeleton' | 'pong'>('skeleton');
   const [isExiting, setIsExiting] = useState(false);
 
@@ -1738,6 +1849,7 @@ const App = () => {
   }, [step, result]);
 
   const toggleRecording = () => {
+    triggerHaptic('light');
     if (isRecording) {
         if (recognitionRef.current) {
             recognitionRef.current.stop();
@@ -2073,6 +2185,15 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
       setTimeout(() => {
         setResult(text);
+        playThwackSound(); // Satisfying thwack on result
+        triggerHaptic('heavy'); // Satisfying haptic on result
+        setStep('result');
+
+        // Auto-play if audio was successfully generated
+        if (autoPlay && audioBufferRef.current) {
+          // Small delay to let the UI settle
+          setTimeout(() => playAudio(), 500);
+        }
         // Transition to rage meter instead of directly to result
         setStep('rage');
       }, remainingTime);
@@ -2101,12 +2222,19 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
   const reset = () => {
     stopAudio(); // Stop any playing audio
+    triggerHaptic('light');
     setStep('input');
     setInput("");
     setResult("");
     audioBufferRef.current = null;
     setBtnHovered(false); // Clear button hover state
   };
+
+  // Swipe gesture for going back from result to input
+  const swipeContainerRef = useSwipeGesture(
+    step === 'result' ? reset : undefined, // Swipe right to go back
+    undefined
+  );
 
   const renderResult = () => {
     const killShotMatch = result.match(/## (?:💀 )?(?:The Kill Shot|Der Gnadenschuss)\s*\n+["']?([^#]+?)["']?\s*(?=##|$)/is);
@@ -2192,6 +2320,13 @@ You do not roast the user. You are the user's weapon. The user will paste text f
 
   return (
     <div
+      ref={swipeContainerRef}
+      className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden"
+      style={{
+        paddingBottom: isKeyboardVisible ? `${keyboardHeight}px` : undefined,
+        transition: 'padding-bottom 0.2s ease-out'
+      }}
+    >
       ref={pullRefreshRef}
       className="min-h-screen relative flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden"
       style={{
@@ -2283,6 +2418,8 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             </div>
 
             {step === 'input' && (
+                <div className="flex flex-col gap-4 min-h-[300px]">
+                    <div className="relative">
                 <div className="flex flex-col gap-4 animate-fade-slide-in">
                     <div className="relative animate-bounce-in" style={{ animationDelay: '0.05s', opacity: 0, animationFillMode: 'forwards' }}>
                         <div className="mb-4 mt-4 h-20 w-full overflow-visible">
@@ -2326,10 +2463,11 @@ You do not roast the user. You are the user's weapon. The user will paste text f
                     <RoughHighlight show={btnHovered} type="circle" color="#000" padding={10} iterations={1} strokeWidth={2}>
                         <button
                         ref={actionBtnRef}
-                        onClick={() => { playClickSound(); handleSilencer(); }}
+                        onClick={() => { playClickSound(); triggerHaptic('medium'); handleSilencer(); }}
                         onMouseEnter={() => setBtnHovered(true)}
                         onMouseLeave={() => setBtnHovered(false)}
                         disabled={!input.trim()}
+                        className="w-full wobbly-box bg-red-400 px-8 py-4 text-2xl md:text-3xl font-black flex items-center justify-center gap-3 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 hover:scale-[1.02] active:scale-95 active:translate-y-1 transition-all duration-150 mt-2 touch-feedback"
                         className="w-full wobbly-box bg-red-400 px-8 py-4 text-2xl md:text-3xl font-black flex items-center justify-center gap-3 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.96] active:translate-y-1 transition-all duration-150 mt-2 btn-press animate-bounce-in"
                         style={{ animationDelay: '0.15s', opacity: 0, animationFillMode: 'forwards' }}
                         >
@@ -2346,6 +2484,9 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             )}
 
             {step === 'loading' && (
+                <div className="min-h-[300px] h-80 flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300 gpu-accelerated">
+                    <PongLoader />
+                    <div className="text-center w-full">
                 <div className="min-h-[24rem] flex flex-col items-center justify-center gap-6 animate-fade-slide-in">
                     {/* Skeleton Phase - shows result structure preview */}
                     <div className={`w-full transition-all duration-500 ${loadingPhase === 'skeleton' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute pointer-events-none'}`}>
@@ -2375,7 +2516,7 @@ You do not roast the user. You are the user's weapon. The user will paste text f
             )}
 
             {step === 'result' && (
-                <div className="animate-crossfade">
+                <div className="animate-crossfade relative swipe-hint gpu-accelerated min-h-[300px]">
                     <div className="flex justify-between items-center mb-6 border-b-2 border-dashed border-gray-300 pb-2">
                         <div className="flex flex-col">
                             <div className="flex items-center gap-2 text-2xl font-black text-gray-400 uppercase">
