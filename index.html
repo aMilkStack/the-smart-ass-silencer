@@ -120,6 +120,21 @@
                 '0%': { opacity: '0', transform: 'translateY(10px) scale(0.98)' },
                 '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
               },
+              'modal-in': {
+                '0%': { opacity: '0', transform: 'scale(0.95) translateY(10px)' },
+                '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+              },
+              'section-expand': {
+                '0%': { opacity: '0', height: '0', transform: 'translateY(-8px)' },
+                '100%': { opacity: '1', height: 'var(--section-height)', transform: 'translateY(0)' },
+              },
+              'section-collapse': {
+                '0%': { opacity: '1', height: 'var(--section-height)', transform: 'translateY(0)' },
+                '100%': { opacity: '0', height: '0', transform: 'translateY(-8px)' },
+              },
+              'chevron-rotate': {
+                '0%': { transform: 'rotate(0deg)' },
+                '100%': { transform: 'rotate(180deg)' },
               'rage-fill': {
                 '0%': { width: '0%' },
                 '60%': { width: '60%' },
@@ -512,6 +527,72 @@
         animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
       }
 
+      /* High Contrast Mode */
+      .high-contrast {
+        --bg-color: #000;
+        --text-color: #fff;
+        --border-color: #fff;
+      }
+
+      .high-contrast body {
+        background-color: #000 !important;
+        color: #fff !important;
+      }
+
+      .high-contrast .wobbly-box,
+      .high-contrast .wobbly-input {
+        background: #000 !important;
+        border-color: #fff !important;
+        color: #fff !important;
+      }
+
+      .high-contrast .bg-white {
+        background-color: #000 !important;
+      }
+
+      .high-contrast .text-gray-400,
+      .high-contrast .text-gray-500,
+      .high-contrast .text-gray-600,
+      .high-contrast .text-gray-700,
+      .high-contrast .text-gray-800 {
+        color: #fff !important;
+      }
+
+      .high-contrast .border-gray-200,
+      .high-contrast .border-gray-300 {
+        border-color: #fff !important;
+      }
+
+      .high-contrast .bg-gray-50,
+      .high-contrast .bg-gray-100 {
+        background-color: #1a1a1a !important;
+      }
+
+      .high-contrast button:not(.bg-black):not(.bg-red-400):not(.bg-red-500):not(.bg-green-400):not(.bg-yellow-200):not(.bg-yellow-300) {
+        background-color: #000 !important;
+        border-color: #fff !important;
+        color: #fff !important;
+      }
+
+      .high-contrast a {
+        color: #00ffff !important;
+      }
+
+      .high-contrast input,
+      .high-contrast select,
+      .high-contrast textarea {
+        background-color: #1a1a1a !important;
+        border-color: #fff !important;
+        color: #fff !important;
+      }
+
+      /* Range slider in high contrast */
+      .high-contrast input[type="range"] {
+        background: #333 !important;
+      }
+
+      .high-contrast input[type="range"]::-webkit-slider-thumb {
+        background: #fff !important;
       /* === Accessibility Styles === */
 
       /* Skip to content link */

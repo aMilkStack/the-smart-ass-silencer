@@ -17,6 +17,23 @@ import {
   X,
   HelpCircle,
   ArrowRight,
+  ChevronDown,
+  Globe,
+  Volume1,
+  VolumeX,
+  Play,
+  Accessibility,
+  Eye,
+  Type,
+  Vibrate,
+  Info,
+  Trash2,
+  ExternalLink,
+  Gamepad2,
+  AlertTriangle,
+  Sun,
+  Moon,
+  MessageSquare
   Square
 } from "lucide-react";
 
@@ -1745,6 +1762,158 @@ const LanguageSelectionModal = ({
     );
 };
 
+// --- Settings Types ---
+interface SettingsState {
+    language: 'en' | 'de';
+    autoPlay: boolean;
+    masterVolume: number;
+    voiceSelection: string;
+    playbackSpeed: number;
+    pitch: number;
+    reducedMotion: boolean;
+    highContrast: boolean;
+    screenReaderVerbosity: 'minimal' | 'full';
+    fontSize: number;
+    hapticFeedback: boolean;
+}
+
+const DEFAULT_SETTINGS: SettingsState = {
+    language: 'en',
+    autoPlay: true,
+    masterVolume: 80,
+    voiceSelection: 'default',
+    playbackSpeed: 1,
+    pitch: 1,
+    reducedMotion: false,
+    highContrast: false,
+    screenReaderVerbosity: 'minimal',
+    fontSize: 100,
+    hapticFeedback: true,
+};
+
+const APP_VERSION = '1.0.0';
+
+// --- Collapsible Section Component ---
+const CollapsibleSection = ({
+    title,
+    icon: Icon,
+    isOpen,
+    onToggle,
+    children,
+    reducedMotion = false
+}: {
+    title: string;
+    icon: React.ComponentType<{ size?: number; className?: string }>;
+    isOpen: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+    reducedMotion?: boolean;
+}) => {
+    const contentRef = useRef<HTMLDivElement>(null);
+    const [contentHeight, setContentHeight] = useState(0);
+
+    useEffect(() => {
+        if (contentRef.current) {
+            setContentHeight(contentRef.current.scrollHeight);
+        }
+    }, [children, isOpen]);
+
+    return (
+        <div className="border-2 border-gray-200 rounded-lg overflow-hidden">
+            <button
+                onClick={onToggle}
+                className="w-full p-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors font-bold text-left"
+                aria-expanded={isOpen}
+            >
+                <span className="flex items-center gap-3">
+                    <Icon size={20} className="text-gray-600" />
+                    {title}
+                </span>
+                <ChevronDown
+                    size={20}
+                    className={`text-gray-400 transition-transform ${reducedMotion ? '' : 'duration-300'} ${isOpen ? 'rotate-180' : ''}`}
+                />
+            </button>
+            <div
+                style={{
+                    height: isOpen ? contentHeight : 0,
+                    transition: reducedMotion ? 'none' : 'height 0.3s ease-out, opacity 0.2s ease-out',
+                    opacity: isOpen ? 1 : 0,
+                    overflow: 'hidden'
+                }}
+            >
+                <div ref={contentRef} className="p-4 space-y-4 border-t border-gray-200">
+                    {children}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Toggle Switch Component ---
+const ToggleSwitch = ({
+    checked,
+    onChange,
+    disabled = false
+}: {
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    disabled?: boolean;
+}) => (
+    <button
+        onClick={() => !disabled && onChange(!checked)}
+        disabled={disabled}
+        className={`w-14 h-8 rounded-full border-2 border-black flex items-center px-1 transition-all ${
+            checked ? 'bg-green-400 justify-end' : 'bg-gray-200 justify-start'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        role="switch"
+        aria-checked={checked}
+    >
+        <div className="w-5 h-5 bg-white border-2 border-black rounded-full shadow-sm" />
+    </button>
+);
+
+// --- Slider Component ---
+const Slider = ({
+    value,
+    min,
+    max,
+    step = 1,
+    onChange,
+    label,
+    valueLabel,
+    icon: Icon
+}: {
+    value: number;
+    min: number;
+    max: number;
+    step?: number;
+    onChange: (value: number) => void;
+    label: string;
+    valueLabel?: string;
+    icon?: React.ComponentType<{ size?: number; className?: string }>;
+}) => (
+    <div className="space-y-2">
+        <div className="flex items-center justify-between">
+            <label className="font-bold text-gray-600 flex items-center gap-2">
+                {Icon && <Icon size={16} className="text-gray-500" />}
+                {label}
+            </label>
+            <span className="text-sm font-bold text-gray-500">{valueLabel || value}</span>
+        </div>
+        <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
+        />
+    </div>
+);
+
+// --- Comprehensive Settings Modal ---
 // Sarcasm level labels
 const SARCASM_LEVELS = {
     en: [
@@ -1776,11 +1945,97 @@ const SettingsModal = ({
     setSarcasmLevel,
     isPlaying,
     step,
-    onRegenerateWithLanguage
-}: any) => {
+    onRegenerateWithLanguage,
+    settings,
+    updateSettings,
+    onStartPong,
+    triggerRef
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    language: 'en' | 'de';
+    setLanguage: (lang: 'en' | 'de') => void;
+    onPlayAudio: () => void;
+    hasAudio: boolean;
+    autoPlay: boolean;
+    setAutoPlay: (val: boolean) => void;
+    isPlaying: boolean;
+    step: 'input' | 'loading' | 'result';
+    onRegenerateWithLanguage: (lang: 'en' | 'de') => Promise<void>;
+    settings: SettingsState;
+    updateSettings: (updates: Partial<SettingsState>) => void;
+    onStartPong: () => void;
+    triggerRef: React.RefObject<HTMLButtonElement | null>;
+}) => {
+    const [openSection, setOpenSection] = useState<string | null>('language');
     const [showLanguageConfirm, setShowLanguageConfirm] = useState(false);
+    const [showClearDataConfirm, setShowClearDataConfirm] = useState(false);
     const [pendingLanguage, setPendingLanguage] = useState<'en' | 'de' | null>(null);
     const modalRef = useRef<HTMLDivElement>(null);
+    const firstFocusableRef = useRef<HTMLButtonElement>(null);
+    const lastFocusableRef = useRef<HTMLButtonElement>(null);
+
+    // Check system preference for reduced motion
+    const prefersReducedMotion = typeof window !== 'undefined'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false;
+    const effectiveReducedMotion = settings.reducedMotion || prefersReducedMotion;
+
+    // Focus trap
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+                return;
+            }
+
+            if (e.key === 'Tab') {
+                const focusableElements = modalRef.current?.querySelectorAll(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                );
+                if (!focusableElements || focusableElements.length === 0) return;
+
+                const firstElement = focusableElements[0] as HTMLElement;
+                const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+                if (e.shiftKey && document.activeElement === firstElement) {
+                    e.preventDefault();
+                    lastElement.focus();
+                } else if (!e.shiftKey && document.activeElement === lastElement) {
+                    e.preventDefault();
+                    firstElement.focus();
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+
+        // Focus first element
+        setTimeout(() => {
+            const firstFocusable = modalRef.current?.querySelector(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            ) as HTMLElement;
+            firstFocusable?.focus();
+        }, 100);
+
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
+
+    // Return focus on close
+    useEffect(() => {
+        if (!isOpen && triggerRef.current) {
+            triggerRef.current.focus();
+        }
+    }, [isOpen, triggerRef]);
+
+    // Click outside to close
+    const handleBackdropClick = (e: React.MouseEvent) => {
+        if (e.target === e.currentTarget) {
+            onClose();
+        }
+    };
     const confirmModalRef = useRef<HTMLDivElement>(null);
 
     // Focus trap and escape key handling
@@ -1821,18 +2076,19 @@ const SettingsModal = ({
         if (newLang === language) return;
         triggerHaptic('light');
 
-        // If viewing results, show confirmation
         if (step === 'result') {
             setPendingLanguage(newLang);
             setShowLanguageConfirm(true);
         } else {
             setLanguage(newLang);
+            updateSettings({ language: newLang });
         }
     };
 
     const confirmLanguageChange = () => {
         if (pendingLanguage) {
             setLanguage(pendingLanguage);
+            updateSettings({ language: pendingLanguage });
             onRegenerateWithLanguage(pendingLanguage);
             setShowLanguageConfirm(false);
             setPendingLanguage(null);
@@ -1840,9 +2096,38 @@ const SettingsModal = ({
         }
     };
 
-    const cancelLanguageChange = () => {
-        setShowLanguageConfirm(false);
-        setPendingLanguage(null);
+    const handleClearData = () => {
+        localStorage.clear();
+        setShowClearDataConfirm(false);
+        window.location.reload();
+    };
+
+    const handleTestAudio = () => {
+        // Play a test beep with current volume settings
+        try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.frequency.value = 440 * settings.pitch;
+            oscillator.type = 'sine';
+
+            const volume = (settings.masterVolume / 100) * 0.3;
+            gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+
+            oscillator.start(audioCtx.currentTime);
+            oscillator.stop(audioCtx.currentTime + 0.5);
+        } catch (e) {
+            console.error('Audio test failed:', e);
+        }
+    };
+
+    const toggleSection = (section: string) => {
+        setOpenSection(openSection === section ? null : section);
     };
 
     // Handle toggle with keyboard
@@ -1855,6 +2140,221 @@ const SettingsModal = ({
 
     const t = {
         title: language === 'de' ? 'Einstellungen' : 'Settings',
+        // Language section
+        languageTitle: language === 'de' ? 'Sprache & Region' : 'Language & Region',
+        languageLabel: language === 'de' ? 'Sprache' : 'Language',
+        languageWarning: language === 'de' ? 'Sprachwechsel erzeugt neues Ergebnis' : 'Changing language will regenerate result',
+        // Audio section
+        audioTitle: language === 'de' ? 'Audio' : 'Audio',
+        masterVolume: language === 'de' ? 'Lautstärke' : 'Master Volume',
+        autoPlayLabel: language === 'de' ? 'Automatisch abspielen' : 'Auto-play TTS',
+        voiceSelection: language === 'de' ? 'Stimme' : 'Voice Selection',
+        voiceComingSoon: language === 'de' ? 'Bald verfügbar' : 'Coming soon',
+        testAudio: language === 'de' ? 'Audio testen' : 'Test Audio',
+        playbackSpeed: language === 'de' ? 'Wiedergabegeschwindigkeit' : 'Playback Speed',
+        pitch: language === 'de' ? 'Tonhöhe' : 'Pitch',
+        // Accessibility section
+        accessibilityTitle: language === 'de' ? 'Barrierefreiheit' : 'Accessibility',
+        reducedMotion: language === 'de' ? 'Reduzierte Bewegung' : 'Reduced Motion',
+        reducedMotionSystem: language === 'de' ? '(Systemeinstellung aktiv)' : '(System preference active)',
+        highContrast: language === 'de' ? 'Hoher Kontrast' : 'High Contrast',
+        screenReader: language === 'de' ? 'Screenreader-Ausgabe' : 'Screen Reader Verbosity',
+        minimal: language === 'de' ? 'Minimal' : 'Minimal',
+        full: language === 'de' ? 'Vollständig' : 'Full',
+        fontSize: language === 'de' ? 'Schriftgröße' : 'Font Size',
+        hapticFeedback: language === 'de' ? 'Haptisches Feedback' : 'Haptic Feedback',
+        // About section
+        aboutTitle: language === 'de' ? 'Über' : 'About',
+        version: language === 'de' ? 'Version' : 'Version',
+        reportIssue: language === 'de' ? 'Problem melden' : 'Report an Issue',
+        clearData: language === 'de' ? 'Lokale Daten löschen' : 'Clear Local Data',
+        clearDataWarning: language === 'de' ? 'Alle Einstellungen werden zurückgesetzt' : 'All settings will be reset',
+        // Pong section
+        pongTitle: language === 'de' ? 'Pong spielen' : 'Play Pong',
+        startPong: language === 'de' ? 'Endlos spielen' : 'Play Infinitely',
+        // Dialogs
+        confirmLanguageTitle: language === 'de' ? 'Sprache wechseln?' : 'Change Language?',
+        confirmLanguageText: language === 'de'
+            ? 'Das Ergebnis wird neu generiert, um die Antwort und das Audio in der neuen Sprache zu erhalten.'
+            : 'This will regenerate the result to get the response and audio in the new language.',
+        confirmClearTitle: language === 'de' ? 'Daten löschen?' : 'Clear Data?',
+        confirmClearText: language === 'de'
+            ? 'Alle gespeicherten Einstellungen und Daten werden gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.'
+            : 'All saved settings and data will be deleted. This action cannot be undone.',
+        cancel: language === 'de' ? 'Abbrechen' : 'Cancel',
+        confirm: language === 'de' ? 'Bestätigen' : 'Confirm',
+        regenerate: language === 'de' ? 'Neu generieren' : 'Regenerate',
+        delete: language === 'de' ? 'Löschen' : 'Delete',
+    };
+
+    const voiceOptions = [
+        { value: 'default', label: language === 'de' ? 'Standard' : 'Default' },
+        { value: 'fenrir', label: 'Fenrir', disabled: true },
+        { value: 'aoede', label: 'Aoede', disabled: true },
+        { value: 'charon', label: 'Charon', disabled: true },
+    ];
+
+    const speedOptions = [
+        { value: 0.75, label: '0.75x' },
+        { value: 1, label: '1x' },
+        { value: 1.25, label: '1.25x' },
+        { value: 1.5, label: '1.5x' },
+    ];
+
+    return (
+        <div
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-0 md:p-4 backdrop-blur-sm"
+            onClick={handleBackdropClick}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+        >
+            <div
+                ref={modalRef}
+                className={`bg-white md:wobbly-box w-full h-full md:h-auto md:max-h-[90vh] md:max-w-lg md:w-full relative flex flex-col overflow-hidden ${
+                    effectiveReducedMotion ? '' : 'animate-[modal-in_0.3s_ease-out]'
+                }`}
+                style={{ borderRadius: 'inherit' }}
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 md:p-6 border-b-2 border-dashed border-gray-200 shrink-0">
+                    <h2 id="settings-title" className="text-2xl font-black flex items-center gap-2">
+                        <Settings className={effectiveReducedMotion ? '' : 'animate-spin-slow'} size={24} />
+                        {t.title}
+                    </h2>
+                    <button
+                        ref={firstFocusableRef}
+                        onClick={onClose}
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                        aria-label={language === 'de' ? 'Schließen' : 'Close'}
+                    >
+                        <X size={24} />
+                    </button>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
+                    {/* Language & Region */}
+                    <CollapsibleSection
+                        title={t.languageTitle}
+                        icon={Globe}
+                        isOpen={openSection === 'language'}
+                        onToggle={() => toggleSection('language')}
+                        reducedMotion={effectiveReducedMotion}
+                    >
+                        <div className="space-y-3">
+                            <label className="font-bold text-gray-600 block">{t.languageLabel}</label>
+                            {step === 'result' && (
+                                <div className="text-xs text-amber-600 flex items-start gap-1 bg-amber-50 p-2 rounded">
+                                    <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                                    <span>{t.languageWarning}</span>
+                                </div>
+                            )}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleLanguageChange('en')}
+                                    className={`flex-1 p-3 font-bold border-2 transition-all rounded ${
+                                        language === 'en'
+                                            ? 'bg-black text-white border-black shadow-md'
+                                            : 'bg-white text-gray-400 border-gray-200 hover:border-black'
+                                    }`}
+                                >
+                                    English
+                                </button>
+                                <button
+                                    onClick={() => handleLanguageChange('de')}
+                                    className={`flex-1 p-3 font-bold border-2 transition-all rounded ${
+                                        language === 'de'
+                                            ? 'bg-black text-white border-black shadow-md'
+                                            : 'bg-white text-gray-400 border-gray-200 hover:border-black'
+                                    }`}
+                                >
+                                    Deutsch
+                                </button>
+                            </div>
+                        </div>
+                    </CollapsibleSection>
+
+                    {/* Audio */}
+                    <CollapsibleSection
+                        title={t.audioTitle}
+                        icon={Volume2}
+                        isOpen={openSection === 'audio'}
+                        onToggle={() => toggleSection('audio')}
+                        reducedMotion={effectiveReducedMotion}
+                    >
+                        <div className="space-y-5">
+                            {/* Master Volume */}
+                            <Slider
+                                value={settings.masterVolume}
+                                min={0}
+                                max={100}
+                                onChange={(v) => updateSettings({ masterVolume: v })}
+                                label={t.masterVolume}
+                                valueLabel={`${settings.masterVolume}%`}
+                                icon={settings.masterVolume === 0 ? VolumeX : settings.masterVolume < 50 ? Volume1 : Volume2}
+                            />
+
+                            {/* Auto-play Toggle */}
+                            <div className="flex items-center justify-between">
+                                <label className="font-bold text-gray-600">{t.autoPlayLabel}</label>
+                                <ToggleSwitch
+                                    checked={autoPlay}
+                                    onChange={setAutoPlay}
+                                />
+                            </div>
+
+                            {/* Voice Selection */}
+                            <div className="space-y-2">
+                                <label className="font-bold text-gray-600 block">{t.voiceSelection}</label>
+                                <select
+                                    value={settings.voiceSelection}
+                                    onChange={(e) => updateSettings({ voiceSelection: e.target.value })}
+                                    className="w-full p-3 border-2 border-gray-200 rounded font-bold bg-white focus:border-black outline-none transition-colors"
+                                >
+                                    {voiceOptions.map((opt) => (
+                                        <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                                            {opt.label} {opt.disabled ? `(${t.voiceComingSoon})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Playback Speed */}
+                            <div className="space-y-2">
+                                <label className="font-bold text-gray-600 block">{t.playbackSpeed}</label>
+                                <div className="flex gap-2">
+                                    {speedOptions.map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => updateSettings({ playbackSpeed: opt.value })}
+                                            className={`flex-1 p-2 font-bold border-2 transition-all rounded text-sm ${
+                                                settings.playbackSpeed === opt.value
+                                                    ? 'bg-black text-white border-black'
+                                                    : 'bg-white text-gray-500 border-gray-200 hover:border-black'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Pitch Control */}
+                            <Slider
+                                value={settings.pitch}
+                                min={0.5}
+                                max={2}
+                                step={0.1}
+                                onChange={(v) => updateSettings({ pitch: v })}
+                                label={t.pitch}
+                                valueLabel={`${settings.pitch.toFixed(1)}x`}
+                            />
+
+                            {/* Test Audio Button */}
+                            <button
+                                onClick={handleTestAudio}
+                                className="w-full p-3 border-2 border-black bg-yellow-200 font-bold rounded flex items-center justify-center gap-2 hover:bg-yellow-300 transition-colors active:scale-95"
         languageLabel: language === 'de' ? 'Sprach-Protokoll' : 'Language Protocol',
         autoPlayLabel: language === 'de' ? 'Beleidigungen automatisch abspielen' : 'Auto-play Insults',
         lastTransmission: language === 'de' ? 'Letzte Übertragung' : 'Last Transmission',
@@ -1934,9 +2434,134 @@ const SettingsModal = ({
                                 aria-checked={language === 'en'}
                                 aria-label="English"
                             >
-                                English
+                                <Play size={18} />
+                                {t.testAudio}
                             </button>
+                        </div>
+                    </CollapsibleSection>
+
+                    {/* Accessibility */}
+                    <CollapsibleSection
+                        title={t.accessibilityTitle}
+                        icon={Accessibility}
+                        isOpen={openSection === 'accessibility'}
+                        onToggle={() => toggleSection('accessibility')}
+                        reducedMotion={effectiveReducedMotion}
+                    >
+                        <div className="space-y-5">
+                            {/* Reduced Motion */}
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <label className="font-bold text-gray-600 block">{t.reducedMotion}</label>
+                                    {prefersReducedMotion && (
+                                        <span className="text-xs text-gray-400">{t.reducedMotionSystem}</span>
+                                    )}
+                                </div>
+                                <ToggleSwitch
+                                    checked={settings.reducedMotion || prefersReducedMotion}
+                                    onChange={(v) => updateSettings({ reducedMotion: v })}
+                                    disabled={prefersReducedMotion}
+                                />
+                            </div>
+
+                            {/* High Contrast */}
+                            <div className="flex items-center justify-between">
+                                <label className="font-bold text-gray-600 flex items-center gap-2">
+                                    <Eye size={16} className="text-gray-500" />
+                                    {t.highContrast}
+                                </label>
+                                <ToggleSwitch
+                                    checked={settings.highContrast}
+                                    onChange={(v) => updateSettings({ highContrast: v })}
+                                />
+                            </div>
+
+                            {/* Screen Reader Verbosity */}
+                            <div className="space-y-2">
+                                <label className="font-bold text-gray-600 flex items-center gap-2">
+                                    <MessageSquare size={16} className="text-gray-500" />
+                                    {t.screenReader}
+                                </label>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => updateSettings({ screenReaderVerbosity: 'minimal' })}
+                                        className={`flex-1 p-2 font-bold border-2 transition-all rounded ${
+                                            settings.screenReaderVerbosity === 'minimal'
+                                                ? 'bg-black text-white border-black'
+                                                : 'bg-white text-gray-500 border-gray-200 hover:border-black'
+                                        }`}
+                                    >
+                                        {t.minimal}
+                                    </button>
+                                    <button
+                                        onClick={() => updateSettings({ screenReaderVerbosity: 'full' })}
+                                        className={`flex-1 p-2 font-bold border-2 transition-all rounded ${
+                                            settings.screenReaderVerbosity === 'full'
+                                                ? 'bg-black text-white border-black'
+                                                : 'bg-white text-gray-500 border-gray-200 hover:border-black'
+                                        }`}
+                                    >
+                                        {t.full}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Font Size */}
+                            <Slider
+                                value={settings.fontSize}
+                                min={75}
+                                max={150}
+                                step={5}
+                                onChange={(v) => updateSettings({ fontSize: v })}
+                                label={t.fontSize}
+                                valueLabel={`${settings.fontSize}%`}
+                                icon={Type}
+                            />
+
+                            {/* Haptic Feedback */}
+                            <div className="flex items-center justify-between">
+                                <label className="font-bold text-gray-600 flex items-center gap-2">
+                                    <Vibrate size={16} className="text-gray-500" />
+                                    {t.hapticFeedback}
+                                </label>
+                                <ToggleSwitch
+                                    checked={settings.hapticFeedback}
+                                    onChange={(v) => updateSettings({ hapticFeedback: v })}
+                                />
+                            </div>
+                        </div>
+                    </CollapsibleSection>
+
+                    {/* About */}
+                    <CollapsibleSection
+                        title={t.aboutTitle}
+                        icon={Info}
+                        isOpen={openSection === 'about'}
+                        onToggle={() => toggleSection('about')}
+                        reducedMotion={effectiveReducedMotion}
+                    >
+                        <div className="space-y-4">
+                            {/* Version */}
+                            <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                                <span className="font-bold text-gray-600">{t.version}</span>
+                                <span className="text-gray-500 font-mono">{APP_VERSION}</span>
+                            </div>
+
+                            {/* Report Issue */}
+                            <a
+                                href="https://github.com/aMilkStack/smartassilencer/issues"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-between p-3 border-2 border-gray-200 rounded hover:border-black transition-colors"
+                            >
+                                <span className="font-bold text-gray-600">{t.reportIssue}</span>
+                                <ExternalLink size={18} className="text-gray-400" />
+                            </a>
+
+                            {/* Clear Data */}
                             <button
+                                onClick={() => setShowClearDataConfirm(true)}
+                                className="w-full p-3 border-2 border-red-200 text-red-600 font-bold rounded flex items-center justify-center gap-2 hover:bg-red-50 hover:border-red-400 transition-colors"
                                 {...getLangItemProps(1)}
                                 onClick={() => handleLanguageChange('de')}
                                 aria-pressed={language === 'de'}
@@ -1954,9 +2579,38 @@ const SettingsModal = ({
                                 aria-checked={language === 'de'}
                                 aria-label="Deutsch"
                             >
-                                Deutsch
+                                <Trash2 size={18} />
+                                {t.clearData}
                             </button>
+                            <p className="text-xs text-gray-400 text-center">{t.clearDataWarning}</p>
                         </div>
+                    </CollapsibleSection>
+
+                    {/* Play Pong */}
+                    <CollapsibleSection
+                        title={t.pongTitle}
+                        icon={Gamepad2}
+                        isOpen={openSection === 'pong'}
+                        onToggle={() => toggleSection('pong')}
+                        reducedMotion={effectiveReducedMotion}
+                    >
+                        <div className="space-y-3">
+                            <p className="text-gray-600 text-sm">
+                                {language === 'de'
+                                    ? 'Spiele Pong ohne Unterbrechung direkt aus den Einstellungen.'
+                                    : 'Play Pong without interruption directly from settings.'
+                                }
+                            </p>
+                            <button
+                                ref={lastFocusableRef}
+                                onClick={() => {
+                                    onStartPong();
+                                    onClose();
+                                }}
+                                className="w-full p-4 border-2 border-black bg-green-400 font-black text-lg rounded flex items-center justify-center gap-2 hover:bg-green-500 transition-colors active:scale-95 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px]"
+                            >
+                                <Gamepad2 size={24} />
+                                {t.startPong}
                     </fieldset>
 
                     {/* Auto Play Toggle */}
@@ -2062,7 +2716,7 @@ const SettingsModal = ({
                                 {isPlaying ? t.playing : t.replayAudio}
                             </button>
                         </div>
-                     )}
+                    </CollapsibleSection>
                 </div>
             </div>
 
@@ -2087,6 +2741,13 @@ const SettingsModal = ({
                         </h3>
                         <p id="confirm-dialog-desc" className="text-gray-700 mb-4 leading-relaxed">
                 <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 z-10">
+                    <div className="bg-white wobbly-box p-6 max-w-sm w-full">
+                        <h3 className="text-xl font-black mb-3 flex items-center gap-2">
+                            <AlertTriangle className="text-amber-500" size={24} />
+                            {t.confirmLanguageTitle}
+                        </h3>
+                        <p className="text-gray-700 mb-4 leading-relaxed">
+                            {t.confirmLanguageText}
                     <div className="bg-white wobbly-box p-6 max-w-xs w-full">
                         <h3 className="text-xl heading-md tracking-tight mb-3">
                             {language === 'de' ? '⚠️ Sprache wechseln?' : '⚠️ Change Language?'}
@@ -2098,22 +2759,57 @@ const SettingsModal = ({
                         </p>
                         <div className="flex gap-2" role="group">
                             <button
+                                onClick={() => {
+                                    setShowLanguageConfirm(false);
+                                    setPendingLanguage(null);
+                                }}
+                                className="flex-1 p-3 border-2 border-gray-300 text-gray-600 font-bold hover:bg-gray-100 transition-all rounded"
                                 {...getConfirmItemProps(0)}
                                 onClick={cancelLanguageChange}
                                 className="flex-1 p-3 border-2 border-gray-300 text-gray-600 font-bold hover:bg-gray-100 transition-all focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2"
                                 className="flex-1 p-3 min-h-[48px] border-2 border-gray-300 text-gray-700 font-bold hover:bg-gray-100 transition-all"
                                 className="flex-1 p-3 border-2 border-gray-300 text-gray-600 font-bold hover:bg-gray-100 transition-all focus-ring"
                             >
-                                {language === 'de' ? 'Abbrechen' : 'Cancel'}
+                                {t.cancel}
                             </button>
                             <button
                                 {...getConfirmItemProps(1)}
                                 onClick={confirmLanguageChange}
+                                className="flex-1 p-3 bg-black text-white font-bold border-2 border-black hover:bg-gray-800 transition-all rounded"
+                            >
+                                {t.regenerate}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Clear Data Confirmation Dialog */}
+            {showClearDataConfirm && (
+                <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 z-10">
+                    <div className="bg-white wobbly-box p-6 max-w-sm w-full">
+                        <h3 className="text-xl font-black mb-3 flex items-center gap-2">
+                            <Trash2 className="text-red-500" size={24} />
+                            {t.confirmClearTitle}
+                        </h3>
+                        <p className="text-gray-700 mb-4 leading-relaxed">
+                            {t.confirmClearText}
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setShowClearDataConfirm(false)}
+                                className="flex-1 p-3 border-2 border-gray-300 text-gray-600 font-bold hover:bg-gray-100 transition-all rounded"
                                 className="flex-1 p-3 bg-black text-white font-bold border-2 border-black hover:bg-gray-800 transition-all focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2"
                                 className="flex-1 p-3 min-h-[48px] bg-black text-white font-bold border-2 border-black hover:bg-gray-800 transition-all"
                                 className="flex-1 p-3 bg-black text-white font-bold border-2 border-black hover:bg-gray-800 transition-all focus-ring"
                             >
-                                {language === 'de' ? 'Neu generieren' : 'Regenerate'}
+                                {t.cancel}
+                            </button>
+                            <button
+                                onClick={handleClearData}
+                                className="flex-1 p-3 bg-red-500 text-white font-bold border-2 border-red-500 hover:bg-red-600 transition-all rounded"
+                            >
+                                {t.delete}
                             </button>
                         </div>
                     </div>
@@ -2512,6 +3208,10 @@ const App = () => {
   const [error, setError] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
+
+  // Pong Mode State
+  const [pongMode, setPongMode] = useState(false);
   const [btnLoading, setBtnLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES_EN[0]);
@@ -2537,6 +3237,12 @@ const App = () => {
     }
     return 'en';
   });
+  const [autoPlay, setAutoPlay] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('auto_play');
+      return saved !== null ? saved === 'true' : true;
+    }
+    return true;
   const [autoPlay, setAutoPlay] = useState(true);
   const [sarcasmLevel, setSarcasmLevel] = useState<number>(() => {
     // Load from localStorage on init (default: 3 - "Properly Annoyed")
@@ -2553,6 +3259,32 @@ const App = () => {
     }
     return '';
   });
+
+  // Comprehensive Settings State
+  const [settings, setSettings] = useState<SettingsState>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('app_settings');
+      if (saved) {
+        try {
+          return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+        } catch (e) {
+          return DEFAULT_SETTINGS;
+        }
+      }
+    }
+    return DEFAULT_SETTINGS;
+  });
+
+  // Update settings helper
+  const updateSettings = (updates: Partial<SettingsState>) => {
+    setSettings(prev => {
+      const newSettings = { ...prev, ...updates };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('app_settings', JSON.stringify(newSettings));
+      }
+      return newSettings;
+    });
+  };
 
   // Roast Counter State
   const [roastCount, setRoastCount] = useState(() => {
@@ -2579,6 +3311,26 @@ const App = () => {
     }
   }, [language]);
 
+  // Save autoPlay preference when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('auto_play', String(autoPlay));
+    }
+  }, [autoPlay]);
+
+  // Apply high contrast mode
+  useEffect(() => {
+    if (settings.highContrast) {
+      document.documentElement.classList.add('high-contrast');
+    } else {
+      document.documentElement.classList.remove('high-contrast');
+    }
+  }, [settings.highContrast]);
+
+  // Apply font size
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${settings.fontSize}%`;
+  }, [settings.fontSize]);
   // Save sarcasm level when it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -3300,7 +4052,40 @@ You do not roast the user. You are the user's weapon. The user will paste text f
         isPlaying={isPlaying}
         step={step}
         onRegenerateWithLanguage={handleRegenerateWithLanguage}
+        settings={settings}
+        updateSettings={updateSettings}
+        onStartPong={() => setPongMode(true)}
+        triggerRef={settingsBtnRef}
       />
+
+      {/* Pong Mode Full Screen */}
+      {pongMode && (
+        <div className="fixed inset-0 bg-[#fffdf5] z-40 flex flex-col items-center justify-center p-4">
+          <div className="w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-black flex items-center gap-2">
+                <Gamepad2 size={24} />
+                {language === 'de' ? 'Pong Modus' : 'Pong Mode'}
+              </h2>
+              <button
+                onClick={() => setPongMode(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors border-2 border-black"
+                aria-label={language === 'de' ? 'Schließen' : 'Close'}
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="h-[70vh]">
+              <PongLoader />
+            </div>
+            <p className="text-center mt-4 text-gray-500 font-bold">
+              {language === 'de'
+                ? 'Bewege deine Maus oder deinen Finger um zu spielen'
+                : 'Move your mouse or finger to play'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Container */}
       <div className="w-full max-w-2xl relative z-10 my-2 md:my-6 px-2">
