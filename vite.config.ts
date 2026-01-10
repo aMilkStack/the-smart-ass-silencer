@@ -18,8 +18,8 @@ export default defineConfig({
         background_color: '#fffdf5',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/smartassilencer/',
-        start_url: '/smartassilencer/',
+        scope: '/the-smart-ass-silencer/',
+        start_url: '/the-smart-ass-silencer/',
         icons: [
           {
             src: 'icon.svg',
@@ -108,7 +108,7 @@ export default defineConfig({
       }
     })
   ],
-  base: '/smartassilencer/',
+  base: '/the-smart-ass-silencer/',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
