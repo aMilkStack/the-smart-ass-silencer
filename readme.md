@@ -4,7 +4,7 @@
 
 The **Smartass Silencer** is a React-based PWA designed to analyze pretentious statements, "LinkedIn thought leadership," and confidently incorrect technical assertions. It uses Google's Gemini AI to generate surgically precise, devastating comebacks in either **British Cynicism** or **German Efficiency** modes.
 
-![Project Preview](public/logo.png)
+![Project Preview](main/logo.png)
 
 ## Features
 
@@ -17,4 +17,5 @@ The **Smartass Silencer** is a React-based PWA designed to analyze pretentious s
 - **Interactive UI:** Hand-drawn aesthetic using `rough-notation` with haptic feedback and sound effects.
 - **Integrated Minigame:** Play a fully functional version of **Pong** while the AI processes your request.
 - **PWA Support:** Installable on mobile and desktop for offline-ready verbal violence.
+
 
